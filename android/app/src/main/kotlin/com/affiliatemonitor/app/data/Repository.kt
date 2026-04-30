@@ -46,11 +46,10 @@ class Repository(private val context: Context) {
         sourceDao.all().map { it.toOut() }
     }
 
-    suspend fun validateSource(url: String): SourcePreview {
+    suspend fun validateSource(url: String): SourcePreview = withContext(Dispatchers.IO) {
         val ua = Prefs.userAgentValue(context)
         val client = http()
         val outcome = Scraper.fetchWithFallback(context, url, client, ua)
-        return withContext(Dispatchers.IO) {
         val page = outcome.page
         // Persist all structured fetch events first so the Logs tab shows the
         // full okhttp_fetch_failed → webview_fallback_started → webview_parse_*
@@ -118,7 +117,6 @@ class Repository(private val context: Context) {
                 htmlTitle = page.htmlTitle,
                 htmlSnippet = page.htmlSnippet,
             )
-        }
         }
     }
 
