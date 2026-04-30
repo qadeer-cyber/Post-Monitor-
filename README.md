@@ -79,11 +79,11 @@ Visit <http://localhost:8000/docs> for the Swagger UI.
 
 | Key | Default | Notes |
 |---|---|---|
-| `AMAZON_ASSOCIATE_TAG` | `your-tag-20` | **Required for real use.** |
+| `AMAZON_ASSOCIATE_TAG` | `laique248-20` | Default sample value; replace with your own. |
 | `DATABASE_URL` | `sqlite:///./data/app.db` | Any SQLAlchemy URL. |
 | `HOST` / `PORT` | `0.0.0.0` / `8000` | Uvicorn bind. |
-| `SCAN_INTERVAL_MINUTES` | `30` | Background scheduler tick. |
-| `DAILY_IMPORT_LIMIT` | `50` | Cap per 24h to stay polite. |
+| `SCAN_INTERVAL_MINUTES` | `60` | Background scheduler tick. |
+| `DAILY_IMPORT_LIMIT` | `100` | Cap per 24h to stay polite. |
 | `DELAY_BETWEEN_PAGE_SCANS_SECONDS` | `5` | Rate limiting between sources. |
 | `TEST_MODE` | `false` | Use `sample_data/pages.json`, no outbound calls. |
 | `ENABLE_PLAYWRIGHT_FALLBACK` | `false` | Retry with headless Chromium if HTML parse fails. |
@@ -163,12 +163,19 @@ APK(s)" menu — it will download Gradle and the wrapper jar automatically.
 
 ### First-run setup in the app
 
-1. Open **Settings** and set **Backend URL**:
-   - `http://10.0.2.2:8000/` if you're on the Android emulator, OR
-   - `http://<your-machine-ip>:8000/` on a physical device (same Wi-Fi).
-2. Set your **Amazon Associate tag** (e.g. `yourtag-20`) and press *Save*.
-3. Go to **Sources** and add one or more public Facebook Page URLs.
-4. Go to **Dashboard** and press **Scan Now**. Ready posts show up in **Queue**.
+The app shows a 3-step onboarding the first time it launches:
+
+1. **Welcome + manual-posting-only notice** — summarises what the app does and
+   what it explicitly does **not** do (no FB login, no auto-posting, no
+   captcha bypass).
+2. **Backend URL** — `http://10.0.2.2:8000/` on the Android emulator, or your
+   dev machine's LAN IP on a physical device.
+3. **Confirm Amazon Associate tag** — prefilled with the configured default
+   (`laique248-20`); change it to yours if needed.
+
+After onboarding: go to **Sources** and add one or more public Facebook Page
+URLs, then press **Scan Now** on the Dashboard. Ready posts appear in the
+**Queue** tab. You can revisit every value later from the **Settings** tab.
 
 ### Test mode
 

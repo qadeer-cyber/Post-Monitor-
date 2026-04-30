@@ -36,7 +36,7 @@ def start_scheduler() -> BackgroundScheduler:
         effective = settings_store.get_effective(db)
     finally:
         db.close()
-    minutes = int(effective.get("scan_interval_minutes") or 30)
+    minutes = int(effective.get("scan_interval_minutes") or 60)
 
     sched = BackgroundScheduler(timezone="UTC")
     sched.add_job(_trigger_scan, "interval", minutes=minutes, id=_JOB_ID, replace_existing=True)

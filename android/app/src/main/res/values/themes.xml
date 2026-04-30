@@ -1,8 +1,19 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- Base theme used during normal activity -->
     <style name="Theme.AffiliatePostMonitor" parent="android:Theme.Material.NoActionBar">
         <item name="android:statusBarColor">@color/bg_deep</item>
         <item name="android:navigationBarColor">@color/bg_deep</item>
         <item name="android:windowLightStatusBar" tools:targetApi="23">false</item>
         <item name="android:windowBackground">@color/bg_deep</item>
+    </style>
+
+    <!-- Splash screen theme using AndroidX Core SplashScreen.
+         Works on Android 12+ natively and is polyfilled down to API 24. -->
+    <style name="Theme.AffiliatePostMonitor.Splash" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/bg_deep</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/splash_logo</item>
+        <item name="windowSplashScreenIconBackgroundColor">@color/bg_deep</item>
+        <item name="postSplashScreenTheme">@style/Theme.AffiliatePostMonitor</item>
     </style>
 </resources>
