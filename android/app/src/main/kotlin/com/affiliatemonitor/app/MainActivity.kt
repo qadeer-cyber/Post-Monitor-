@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -21,7 +22,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.navigation.compose.rememberNavController
-
 import com.affiliatemonitor.app.data.Prefs
 import com.affiliatemonitor.app.ui.AppNav
 import com.affiliatemonitor.app.ui.BottomBar
@@ -29,6 +29,7 @@ import com.affiliatemonitor.app.ui.screens.OnboardingScreen
 import com.affiliatemonitor.app.ui.theme.AppTheme
 import com.affiliatemonitor.app.ui.theme.DeepBg
 import com.affiliatemonitor.app.ui.theme.ElevBg
+import com.affiliatemonitor.app.work.ScanWorker
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -44,9 +45,15 @@ class MainActivity : ComponentActivity() {
             AppTheme {
                 val ctx = LocalContext.current
                 val onboardedFlow = remember { Prefs.isOnboarded(ctx) }
-                // Hold the splash until we've observed the "onboarded" flag at least once.
                 val onboardedState = onboardedFlow.collectAsState(initial = null)
                 if (onboardedState.value != null) keepSplash = false
+
+                LaunchedEffect(onboardedState.value) {
+                    if (onboardedState.value == true) {
+                        // Re-up the periodic scan with current interval each time the app launches.
+                        runCatching { ScanWorker.schedule(ctx) }
+                    }
+                }
 
                 when (onboardedState.value) {
                     null -> Unit // still reading DataStore — splash covers us

@@ -6,24 +6,44 @@ ready-to-copy captions. The Android app shows the queue; you decide when and
 where to publish. **No Facebook login, no auto-posting, no captcha bypass,
 no private group scraping.** Manual publishing only.
 
-```
-+-------------------+       +---------------------+       +-----------------+
-|  FastAPI backend  |  <--  |  Android (Kotlin /  |  -->  |   You copy +    |
-|  (scraper + DB)   |       |  Compose / M3)      |       |   paste on FB   |
-+-------------------+       +---------------------+       +-----------------+
-```
+## Android-only mode: no backend required
+
+As of v0.2 the app is **fully self-contained**. There is no PC, no VPS, no
+Termux, and no FastAPI server in the normal user flow. Everything runs on the
+phone:
+
+| Concern | Implementation |
+|---|---|
+| Source / queue / log storage | **Room** (on-device SQLite) |
+| Settings | **DataStore** |
+| Hourly background scans | **WorkManager** (15-min minimum on Android) |
+| Page fetch + `amzn.to` redirects | **OkHttp** |
+| Public-page HTML parsing | **Jsoup** (Open Graph + post permalinks) |
+| Amazon link extraction / ASIN / affiliate URL | Pure **Kotlin** |
+| Duplicate detection | **3-way**: source post URL + ASIN + caption SHA-256 hash |
+| Image saving | **MediaStore** (`Pictures/AffiliatePostMonitor`) |
+| Caption copy / share | **ClipboardManager** + `Intent.ACTION_SEND` |
+
+Onboarding is now **2 steps**: welcome + manual-posting notice → confirm
+Amazon Associate tag. There is no Backend URL field anywhere in the app.
+
+The `backend/` folder is preserved as **optional / deprecated reference
+tooling** (and for the bundled pytest suite of the link-parsing + dedup
+logic) — you do **not** need to run it.
 
 ## What it does
 
-1. You add a public Facebook Page URL in the **Sources** tab.
-2. The backend periodically fetches each page's public HTML (Playwright
-   fallback is available but off by default).
-3. When a post links to Amazon, the backend:
-   - resolves `amzn.to` short links,
-   - extracts the ASIN from `/dp/…`, `/gp/product/…`, or `/product/…` paths,
-   - rebuilds the URL with **your** `AMAZON_ASSOCIATE_TAG` on the correct
-     marketplace (`amazon.com`, `amazon.co.uk`, `amazon.in`, `amazon.ae`, and
-     many others),
+1. You add a public Facebook Page URL in the **Sources** tab. The app
+   previews the page (name, recent posts) before saving.
+2. Once an hour, WorkManager runs a scan of every active source.
+3. When a post links to Amazon, the app:
+   - resolves `amzn.to` short links via OkHttp,
+   - extracts the ASIN from `/dp/…`, `/gp/product/…`, or `/product/…` paths
+     (or the `?asin=` query string),
+   - rebuilds the URL with **your** Amazon Associate tag on the correct
+     marketplace (17 supported: `amazon.com`, `.co.uk`, `.in`, `.ae`, `.ca`,
+     `.com.au`, `.de`, `.fr`, `.it`, `.es`, `.co.jp`, `.com.mx`, `.com.br`,
+     `.sg`, `.nl`, `.se`, `.pl`),
    - composes the final caption:
 
      ```
@@ -35,99 +55,33 @@ no private group scraping.** Manual publishing only.
      Buy here: {affiliate_link}
      ```
 
-4. Duplicate detection runs on the source post URL, ASIN, caption hash, and a
-   perceptual image hash — nothing gets into the queue twice.
-5. The **Queue** tab in the app shows ready posts with one-tap
+4. Duplicate detection runs on the source post URL, ASIN, and caption hash —
+   nothing gets into the queue twice.
+5. The **Queue** tab shows ready posts with one-tap
    Copy Caption / Save Image / Mark as Posted / Reject / Open Source / Open
    Amazon actions.
 
 ## Repository layout
 
 ```
-backend/           FastAPI + SQLite + APScheduler
-  app/             routers, services (facebook, amazon, scanner, dedup, …)
-  sample_data/     pages.json fixture used in Test mode
-  tests/           pytest suite (link parsing, dedup, captions, API E2E)
+android/                            Standalone Android app (no backend needed)
+  app/src/main/kotlin/.../data/
+    local/        Room entities + DAOs + database
+    amazon/       AmazonLink + Caption (Kotlin port of backend services)
+    facebook/     OkHttp + Jsoup public-page scraper
+    scanner/      Scanner orchestration (daily limit, inter-source delay)
+    Repository.kt Local-only repository the screens talk to
+    Prefs.kt      DataStore-backed settings
+  app/src/main/kotlin/.../work/
+    ScanWorker.kt WorkManager periodic scan worker
+  app/src/main/kotlin/.../ui/       Compose screens (M3, dark, glass cards)
+
+backend/                            DEPRECATED reference tooling (optional)
+  app/                              FastAPI + SQLite + APScheduler
+  sample_data/                      pages.json fixture used in Test mode
+  tests/                            pytest suite (link parsing, dedup, captions)
   requirements.txt
   .env.example
-
-android/           Kotlin + Jetpack Compose app
-  app/src/main/    MainActivity, nav, screens, theme
-  gradle/          version catalog, wrapper config
-  settings.gradle.kts
-  build.gradle.kts
-
-.env.example       root template for copy-to-backend/.env
-```
-
-## Backend setup
-
-Needs Python 3.10+.
-
-```bash
-cd backend
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-cp .env.example .env          # then set AMAZON_ASSOCIATE_TAG
-uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
-```
-
-Visit <http://localhost:8000/docs> for the Swagger UI.
-
-### Environment variables
-
-| Key | Default | Notes |
-|---|---|---|
-| `AMAZON_ASSOCIATE_TAG` | `laique248-20` | Default sample value; replace with your own. |
-| `DATABASE_URL` | `sqlite:///./data/app.db` | Any SQLAlchemy URL. |
-| `HOST` / `PORT` | `0.0.0.0` / `8000` | Uvicorn bind. |
-| `SCAN_INTERVAL_MINUTES` | `60` | Background scheduler tick. |
-| `DAILY_IMPORT_LIMIT` | `100` | Cap per 24h to stay polite. |
-| `DELAY_BETWEEN_PAGE_SCANS_SECONDS` | `5` | Rate limiting between sources. |
-| `TEST_MODE` | `false` | Use `sample_data/pages.json`, no outbound calls. |
-| `ENABLE_PLAYWRIGHT_FALLBACK` | `false` | Retry with headless Chromium if HTML parse fails. |
-| `USER_AGENT` | bot UA | Sent with every request. |
-| `CORS_ORIGINS` | `*` | Comma-separated allow-list. |
-
-### Playwright fallback (optional)
-
-```bash
-pip install playwright
-python -m playwright install chromium
-# then set ENABLE_PLAYWRIGHT_FALLBACK=true
-```
-
-### Tests
-
-```bash
-cd backend
-source .venv/bin/activate
-pip install pytest
-pytest -q
-```
-
-## API
-
-All endpoints are prefixed `/api`:
-
-```
-GET     /api/health
-GET     /api/sources
-POST    /api/sources                     body: {"url": "..."}
-PATCH   /api/sources/{id}                body: {"name": "...", "enabled": bool}
-DELETE  /api/sources/{id}
-POST    /api/scan
-POST    /api/sources/{id}/scan
-GET     /api/dashboard
-GET     /api/queue
-GET     /api/posted
-GET     /api/posts/{id}
-POST    /api/posts/{id}/mark-posted
-POST    /api/posts/{id}/reject
-GET     /api/logs?category=scan|import|link|error&level=info|warn|error
-GET     /api/settings
-PATCH   /api/settings
 ```
 
 ## Android app
@@ -148,9 +102,6 @@ Open `android/` in Android Studio and let the IDE sync. Or from the CLI:
 
 ```bash
 cd android
-# First time only — generates gradle/wrapper/gradle-wrapper.jar
-gradle wrapper --gradle-version 8.9
-
 ./gradlew :app:assembleDebug         # debug APK
 ./gradlew :app:assembleRelease       # release APK (unsigned)
 ```
@@ -163,34 +114,40 @@ APK(s)" menu — it will download Gradle and the wrapper jar automatically.
 
 ### First-run setup in the app
 
-The app shows a 3-step onboarding the first time it launches:
+The app shows a **2-step** onboarding the first time it launches:
 
-1. **Welcome + manual-posting-only notice** — summarises what the app does and
-   what it explicitly does **not** do (no FB login, no auto-posting, no
+1. **Welcome + manual-posting-only notice** — summarises what the app does
+   and what it explicitly does **not** do (no FB login, no auto-posting, no
    captcha bypass).
-2. **Backend URL** — `http://10.0.2.2:8000/` on the Android emulator, or your
-   dev machine's LAN IP on a physical device.
-3. **Confirm Amazon Associate tag** — prefilled with the configured default
+2. **Confirm Amazon Associate tag** — prefilled with the configured default
    (`laique248-20`); change it to yours if needed.
 
 After onboarding: go to **Sources** and add one or more public Facebook Page
-URLs, then press **Scan Now** on the Dashboard. Ready posts appear in the
-**Queue** tab. You can revisit every value later from the **Settings** tab.
+URLs, preview to confirm the page is reachable + public, then save. Ready
+posts appear in the **Queue** tab automatically once the next hourly scan
+runs (or trigger one manually with **Scan Now** on the Dashboard).
 
-### Test mode
+### Default settings
 
-Toggle **Test mode** in Settings to make the backend scan bundled sample
-pages instead of making any real HTTP calls — great for a first run and for
-demos.
+| Setting | Default |
+|---|---|
+| Amazon Associate tag | `laique248-20` |
+| Primary marketplace | `amazon.com` (others auto-detected per post) |
+| Scan interval | 60 minutes |
+| Daily ready-post limit | 100 |
+| Delay between page scans | 5 seconds |
+
+All four are editable from the **Settings** tab. Saving the new interval
+re-schedules WorkManager immediately.
 
 ## Respectful scraping
 
 - Only pages **you explicitly add** are fetched.
-- Short, rate-limited requests with a configurable user-agent.
+- Short, rate-limited requests with a desktop-style user-agent.
 - A per-source delay (default 5s) between fetches.
-- A daily import limit (default 50) as a global throttle.
-- Playwright fallback is opt-in and only used when plain HTML parsing finds
-  nothing.
+- A daily import limit (default 100) as a global throttle.
+- No automatic page discovery, no recommendations, no background crawling
+  of any page that isn't explicitly listed in the Sources tab.
 
 ## What this app explicitly does NOT do
 
@@ -201,6 +158,22 @@ demos.
 - Bypass captchas, rate limits, or Terms of Service.
 
 You are the publisher. The app only prepares the copy-and-paste content.
+
+## Backend (deprecated, optional)
+
+The `backend/` folder is kept for reference and for the bundled pytest suite
+of the link-parsing + dedup logic. Running it is **not** required for normal
+use of the app. If you still want to:
+
+```bash
+cd backend
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env
+uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+pytest -q
+```
 
 ## License
 

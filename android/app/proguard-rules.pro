@@ -1,14 +1,15 @@
-# Retrofit / OkHttp
+# OkHttp / Okio
 -dontwarn okhttp3.**
 -dontwarn okio.**
--dontwarn retrofit2.**
 
-# Moshi Kotlin codegen friendliness
--keep class kotlin.Metadata { *; }
--keepclassmembers class * {
-    @com.squareup.moshi.FromJson *;
-    @com.squareup.moshi.ToJson *;
-}
+# Jsoup uses some optional XML APIs that aren't on Android
+-dontwarn org.jsoup.**
+-dontwarn javax.xml.**
 
-# Data classes (so Moshi reflection can find them)
+# Room: keep the generated DAO impls and entities
+-keep class * extends androidx.room.RoomDatabase
+-keep @androidx.room.Entity class *
+-keep @androidx.room.Dao class *
+
+# Data classes (kept for Compose previews and reflection)
 -keep class com.affiliatemonitor.app.data.** { *; }
