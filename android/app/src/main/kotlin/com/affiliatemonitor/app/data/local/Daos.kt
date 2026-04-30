@@ -103,6 +103,20 @@ interface LogDao {
         offset: Int = 0,
     ): List<LogEntity>
 
+    @Query("""
+        SELECT * FROM logs
+        WHERE category IN (:categories)
+          AND (:level IS NULL OR level = :level)
+        ORDER BY createdAt DESC
+        LIMIT :limit OFFSET :offset
+    """)
+    suspend fun listIn(
+        categories: List<String>,
+        level: String?,
+        limit: Int = 200,
+        offset: Int = 0,
+    ): List<LogEntity>
+
     @Query("DELETE FROM logs WHERE createdAt < :cutoff")
     suspend fun trim(cutoff: Long)
 }

@@ -218,7 +218,7 @@ class Scanner(private val context: Context) {
     ): ScanOutcome {
         logDao.insert(
             LogEntity(
-                category = "scan",
+                category = "scan_started",
                 level = "info",
                 message = "Scan started for ${src.name ?: src.url}",
                 sourceId = src.id,
@@ -234,6 +234,34 @@ class Scanner(private val context: Context) {
             val page = Scraper.fetch(src.url, http, userAgent)
             sourceDao.touchLastCheckedAt(src.id, System.currentTimeMillis())
 
+            // Always emit a diagnostic line with HTTP status / title / first 200 chars.
+            logDao.insert(
+                LogEntity(
+                    category = "scan",
+                    level = if (page.error != null || page.blocked) "warn" else "info",
+                    message = "Fetched ${src.url}: status=${page.httpStatus ?: "n/a"}, " +
+                        "title='${page.htmlTitle?.take(80) ?: ""}', " +
+                        "permalinks=${page.posts.size}, amazonLinks=${page.amazonUrlsOnPage.size}",
+                    sourceId = src.id,
+                    detail = page.htmlSnippet,
+                ),
+            )
+
+            if (page.blocked) {
+                failed += 1
+                logDao.insert(
+                    LogEntity(
+                        category = "blocked_page_detected",
+                        level = "error",
+                        message = "Facebook blocked content for ${src.url}. Try another public page.",
+                        sourceId = src.id,
+                        detail = "title='${page.htmlTitle?.take(120) ?: ""}' " +
+                            "snippet='${page.htmlSnippet?.take(200) ?: ""}'",
+                    ),
+                )
+                return ScanOutcome(found, imported, duplicates, failed)
+            }
+
             if (page.error != null) {
                 failed += 1
                 logDao.insert(
@@ -242,12 +270,37 @@ class Scanner(private val context: Context) {
                         level = "error",
                         message = "Failed to fetch ${src.url}: ${page.error}",
                         sourceId = src.id,
+                        detail = "status=${page.httpStatus ?: "n/a"} title='${page.htmlTitle?.take(120) ?: ""}'",
                     ),
                 )
                 return ScanOutcome(found, imported, duplicates, failed)
             }
 
             page.pageName?.takeIf { it.isNotBlank() }?.let { sourceDao.setNameIfMissing(src.id, it) }
+
+            // posts_found is "posts on the page that contain Amazon links" — emit a single
+            // summary line up-front so the Logs feed has a clear marker before per-post detail.
+            val postsWithAmazon = page.posts.count { it.amazonUrls.isNotEmpty() }
+            logDao.insert(
+                LogEntity(
+                    category = "posts_found",
+                    level = "info",
+                    message = "Found ${page.posts.size} permalinks on ${src.name ?: src.url}; " +
+                        "$postsWithAmazon contain Amazon links",
+                    sourceId = src.id,
+                ),
+            )
+
+            if (postsWithAmazon == 0) {
+                logDao.insert(
+                    LogEntity(
+                        category = "no_amazon_links_found",
+                        level = "warn",
+                        message = "No Amazon links detected on ${src.name ?: src.url}",
+                        sourceId = src.id,
+                    ),
+                )
+            }
 
             for (post in page.posts) {
                 if (imported >= budgetRemaining) {
@@ -323,7 +376,7 @@ class Scanner(private val context: Context) {
                 sourceDao.bumpValidAmazonPosts(src.id)
                 logDao.insert(
                     LogEntity(
-                        category = "link",
+                        category = "amazon_posts_extracted",
                         level = "info",
                         message = "Imported ASIN ${parsed.asin} (${parsed.marketplace})",
                         sourceId = src.id,
@@ -334,8 +387,8 @@ class Scanner(private val context: Context) {
         } finally {
             logDao.insert(
                 LogEntity(
-                    category = "scan",
-                    level = "info",
+                    category = "scan_finished",
+                    level = if (failed == 0) "info" else "warn",
                     message = "Scan finished for ${src.name ?: src.url}: " +
                         "posts_found=$found, amazon_posts_extracted=$imported, errors=$failed",
                     sourceId = src.id,

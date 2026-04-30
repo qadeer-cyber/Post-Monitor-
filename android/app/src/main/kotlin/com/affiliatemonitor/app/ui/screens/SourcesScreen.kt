@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -159,7 +160,20 @@ fun SourcesScreen() {
             when {
                 loading && sources.isEmpty() -> LoadingIndicator()
                 error != null && sources.isEmpty() -> ErrorBanner(error!!) { scope.launch { refresh() } }
-                sources.isEmpty() -> Text("No sources yet. Paste a public Facebook page URL above to get started.", color = TextMuted)
+                sources.isEmpty() -> Column {
+                    Text(
+                        "Add a source to start.",
+                        color = NeonGreen,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        "Paste a public Facebook page URL above and tap Preview page. We never crawl pages you haven't explicitly added.",
+                        color = TextMuted,
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                }
                 else -> LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     items(sources, key = { it.id }) { src ->
                         SourceRow(
@@ -204,7 +218,8 @@ private fun PreviewCard(
     onConfirm: () -> Unit,
 ) {
     val accent = when {
-        preview.isPublic -> NeonGreen
+        preview.blocked -> Danger
+        preview.isPublic && preview.recentPostsCount > 0 -> NeonGreen
         preview.error != null -> Danger
         else -> WarnAmber
     }
@@ -212,7 +227,7 @@ private fun PreviewCard(
         Column {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
-                    imageVector = if (preview.isPublic) Icons.Outlined.Verified else Icons.Outlined.Warning,
+                    imageVector = if (preview.isPublic && !preview.blocked) Icons.Outlined.Verified else Icons.Outlined.Warning,
                     contentDescription = null,
                     tint = accent,
                 )
@@ -225,20 +240,50 @@ private fun PreviewCard(
             }
             Spacer(Modifier.height(6.dp))
             Text(preview.url, color = TextMuted, style = MaterialTheme.typography.bodySmall)
-            Spacer(Modifier.height(8.dp))
-            Text(
-                buildString {
-                    append(if (preview.isPublic) "Public page detected." else "Page does not appear public.")
-                    append("  •  ")
-                    append("${preview.recentPostsCount} recent post(s) visible")
-                },
-                color = if (preview.isPublic) NeonGreen else Danger,
-                style = MaterialTheme.typography.bodyMedium,
+            Spacer(Modifier.height(10.dp))
+
+            // Status chips: page name / public / recent posts / amazon links found
+            CheckRow(
+                ok = preview.pageName != null,
+                ok_text = "Page name detected: ${preview.pageName ?: ""}",
+                bad_text = "Page name not detected from public metadata.",
             )
+            CheckRow(
+                ok = preview.isPublic && !preview.blocked,
+                ok_text = "Public page (no login required)",
+                bad_text = if (preview.blocked) {
+                    "Facebook blocked content. Try another public page."
+                } else {
+                    "Page does not appear public."
+                },
+            )
+            CheckRow(
+                ok = preview.recentPostsCount > 0,
+                ok_text = "${preview.recentPostsCount} recent post(s) visible",
+                bad_text = "No recent posts detected. This page may not work.",
+            )
+            CheckRow(
+                ok = preview.amazonLinksDetected > 0,
+                ok_text = "${preview.amazonLinksDetected} Amazon link(s) detected on the page",
+                bad_text = "No Amazon links detected on the visible page.",
+                neutralWhenFalse = true,
+            )
+
             preview.error?.let {
-                Spacer(Modifier.height(6.dp))
-                Text("Note: $it", color = WarnAmber, style = MaterialTheme.typography.bodySmall)
+                Spacer(Modifier.height(8.dp))
+                Text("Reason: $it", color = WarnAmber, style = MaterialTheme.typography.bodySmall)
             }
+
+            if (preview.httpStatus != null || preview.htmlTitle != null) {
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "Diagnostics — status: ${preview.httpStatus ?: "n/a"}" +
+                        (preview.htmlTitle?.takeIf { it.isNotBlank() }?.let { " • title: \"${it.take(60)}\"" } ?: ""),
+                    color = TextMuted,
+                    style = MaterialTheme.typography.labelSmall,
+                )
+            }
+
             if (preview.samplePosts.isNotEmpty()) {
                 Spacer(Modifier.height(10.dp))
                 Text(
@@ -266,7 +311,7 @@ private fun PreviewCard(
                 }
             }
 
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(10.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 SecondaryButton(
                     "Cancel",
@@ -275,12 +320,45 @@ private fun PreviewCard(
                 )
                 PrimaryButton(
                     text = if (saving) "Saving…" else "Save source",
-                    enabled = !saving && preview.isPublic,
+                    enabled = !saving && preview.isPublic && !preview.blocked,
                     onClick = onConfirm,
                     modifier = Modifier.weight(1f),
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun CheckRow(
+    ok: Boolean,
+    ok_text: String,
+    bad_text: String,
+    neutralWhenFalse: Boolean = false,
+) {
+    val tint = when {
+        ok -> NeonGreen
+        neutralWhenFalse -> WarnAmber
+        else -> Danger
+    }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 2.dp),
+        verticalAlignment = Alignment.Top,
+    ) {
+        Icon(
+            imageVector = if (ok) Icons.Outlined.Verified else Icons.Outlined.Warning,
+            contentDescription = null,
+            tint = tint,
+            modifier = Modifier.size(16.dp),
+        )
+        Spacer(Modifier.size(8.dp))
+        Text(
+            if (ok) ok_text else bad_text,
+            color = Color(0xFFE6EDF3),
+            style = MaterialTheme.typography.bodySmall,
+        )
     }
 }
 

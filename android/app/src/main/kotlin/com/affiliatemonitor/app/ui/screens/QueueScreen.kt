@@ -70,7 +70,19 @@ fun QueueScreen(onOpen: (Int) -> Unit) {
         when {
             loading && posts.isEmpty() -> LoadingIndicator()
             error != null && posts.isEmpty() -> ErrorBanner(error!!) { scope.launch { refresh() } }
-            posts.isEmpty() -> Text("Nothing ready yet. Run a scan from the Dashboard.", color = TextMuted)
+            posts.isEmpty() -> Column {
+                Text(
+                    "No valid Amazon posts found. Try a different page.",
+                    color = TextMuted,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "Tip: add a public Facebook Page that frequently shares Amazon product links, then tap Scan Now from the Dashboard.",
+                    color = TextMuted,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
             else -> LazyColumn(verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 items(posts, key = { it.id }) { post ->
                     QueueCard(
@@ -138,6 +150,29 @@ fun QueueCard(
                 color = TextMuted,
                 style = MaterialTheme.typography.bodySmall,
             )
+            if (com.affiliatemonitor.app.BuildConfig.DEBUG) {
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    "debug",
+                    color = TextMuted,
+                    style = MaterialTheme.typography.labelSmall,
+                )
+                Text(
+                    "source: ${post.sourcePageName ?: "-"}",
+                    color = TextMuted,
+                    style = MaterialTheme.typography.labelSmall,
+                )
+                Text(
+                    "amazonUrl: ${post.amazonUrl}",
+                    color = TextMuted,
+                    style = MaterialTheme.typography.labelSmall,
+                )
+                Text(
+                    "asin: ${post.asin}",
+                    color = TextMuted,
+                    style = MaterialTheme.typography.labelSmall,
+                )
+            }
             Spacer(Modifier.height(10.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 PrimaryButton("Copy", onCopy)

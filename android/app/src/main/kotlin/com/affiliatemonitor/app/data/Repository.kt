@@ -4,6 +4,7 @@ import android.content.Context
 import com.affiliatemonitor.app.BuildConfig
 import com.affiliatemonitor.app.data.facebook.Scraper
 import com.affiliatemonitor.app.data.local.AppDatabase
+import com.affiliatemonitor.app.data.local.LogEntity
 import com.affiliatemonitor.app.data.local.PostEntity
 import com.affiliatemonitor.app.data.local.SourceEntity
 import com.affiliatemonitor.app.data.scanner.Scanner
@@ -49,15 +50,36 @@ class Repository(private val context: Context) {
         val ua = Prefs.userAgentValue(context)
         val client = http()
         val page = Scraper.fetch(url, client, ua)
-        if (page.error != null) {
+        // Always log the raw fetch outcome so the user can see what happened
+        // when previewing a page, even on the happy path.
+        logDao.insert(
+            LogEntity(
+                category = "scan",
+                level = if (page.error != null || page.blocked) "warn" else "info",
+                message = if (page.blocked) {
+                    "blocked_page_detected: ${page.htmlTitle ?: "no <title>"}"
+                } else if (page.error != null) {
+                    "preview_failed: ${page.error}"
+                } else {
+                    "preview_ok: ${page.posts.size} permalinks, ${page.amazonUrlsOnPage.size} Amazon links"
+                },
+                detail = buildScrapeDiagDetail(page),
+            ),
+        )
+        if (page.error != null || page.blocked) {
             SourcePreview(
                 url = url,
-                isReachable = false,
+                isReachable = page.httpStatus != null,
                 isPublic = false,
                 pageName = page.pageName,
                 recentPostsCount = 0,
+                amazonLinksDetected = page.amazonUrlsOnPage.size,
                 samplePosts = emptyList(),
                 error = page.error,
+                blocked = page.blocked,
+                httpStatus = page.httpStatus,
+                htmlTitle = page.htmlTitle,
+                htmlSnippet = page.htmlSnippet,
             )
         } else {
             val isPublic = page.pageName != null || page.posts.isNotEmpty()
@@ -67,6 +89,7 @@ class Repository(private val context: Context) {
                 isPublic = isPublic,
                 pageName = page.pageName,
                 recentPostsCount = page.posts.size,
+                amazonLinksDetected = page.amazonUrlsOnPage.size,
                 samplePosts = page.posts.take(5).map { p ->
                     SourcePreviewPost(
                         url = p.sourcePostUrl,
@@ -76,7 +99,18 @@ class Repository(private val context: Context) {
                     )
                 },
                 error = if (!isPublic) "No public metadata or post permalinks found" else null,
+                httpStatus = page.httpStatus,
+                htmlTitle = page.htmlTitle,
+                htmlSnippet = page.htmlSnippet,
             )
+        }
+    }
+
+    private fun buildScrapeDiagDetail(page: Scraper.ScrapedPage): String = buildString {
+        append("status=").append(page.httpStatus ?: "n/a")
+        append(" title=").append(page.htmlTitle?.take(120) ?: "")
+        page.htmlSnippet?.takeIf { it.isNotBlank() }?.let {
+            append(" snippet=").append(it.take(200))
         }
     }
 
@@ -164,7 +198,22 @@ class Repository(private val context: Context) {
 
     suspend fun logs(category: String? = null, level: String? = null): List<LogOut> =
         withContext(Dispatchers.IO) {
-            logDao.list(category, level).map {
+            // Old chip names ("scan", "import", "link", "error") map to multiple new
+            // structured categories so filtering still does what users expect.
+            val mapped: List<String>? = when (category) {
+                null -> null
+                "scan" -> listOf("scan", "scan_started", "scan_finished", "posts_found")
+                "import" -> listOf("import", "no_amazon_links_found", "amazon_posts_extracted")
+                "link" -> listOf("link", "amazon_posts_extracted")
+                "error" -> listOf("error", "blocked_page_detected")
+                else -> listOf(category)
+            }
+            val rows = if (mapped == null) {
+                logDao.list(null, level)
+            } else {
+                logDao.listIn(mapped, level)
+            }
+            rows.map {
                 LogOut(
                     id = it.id,
                     createdAt = formatIso(it.createdAt),
