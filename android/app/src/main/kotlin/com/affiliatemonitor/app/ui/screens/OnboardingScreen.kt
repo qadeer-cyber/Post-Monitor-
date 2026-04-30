@@ -21,6 +21,14 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Block
+import androidx.compose.material.icons.outlined.PhoneAndroid
+import androidx.compose.material.icons.outlined.Sell
+import androidx.compose.material.icons.outlined.Shield
+import androidx.compose.material.icons.outlined.Verified
+import androidx.compose.material.icons.outlined.Visibility
+import androidx.compose.material.icons.outlined.Widgets
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -39,22 +47,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Block
-import androidx.compose.material.icons.outlined.Dns
-import androidx.compose.material.icons.outlined.Sell
-import androidx.compose.material.icons.outlined.Shield
-import androidx.compose.material.icons.outlined.Verified
-import androidx.compose.material.icons.outlined.Visibility
-import androidx.compose.material.icons.outlined.Widgets
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.affiliatemonitor.app.R
 import com.affiliatemonitor.app.data.Prefs
-import com.affiliatemonitor.app.data.Repository
-import com.affiliatemonitor.app.data.SettingsUpdate
 import com.affiliatemonitor.app.ui.PrimaryButton
 import com.affiliatemonitor.app.ui.SecondaryButton
 import com.affiliatemonitor.app.ui.theme.DeepBg
@@ -65,7 +63,7 @@ import com.affiliatemonitor.app.ui.theme.NeonGreen
 import com.affiliatemonitor.app.ui.theme.TextMuted
 import kotlinx.coroutines.launch
 
-private const val TOTAL_STEPS = 3
+private const val TOTAL_STEPS = 2
 
 @Composable
 fun OnboardingScreen(onDone: () -> Unit) {
@@ -73,7 +71,6 @@ fun OnboardingScreen(onDone: () -> Unit) {
     val scope = rememberCoroutineScope()
 
     var step by remember { mutableIntStateOf(0) }
-    var backendUrl by remember { mutableStateOf(Prefs.DEFAULT_BACKEND_URL) }
     var amazonTag by remember { mutableStateOf(Prefs.DEFAULT_AMAZON_TAG) }
     var saving by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -121,7 +118,7 @@ fun OnboardingScreen(onDone: () -> Unit) {
                         style = MaterialTheme.typography.titleLarge,
                     )
                     Text(
-                        "Premium deals monitoring",
+                        "Premium deals monitoring  •  on-device only",
                         color = TextMuted,
                         style = MaterialTheme.typography.bodySmall,
                     )
@@ -147,14 +144,7 @@ fun OnboardingScreen(onDone: () -> Unit) {
             ) { current ->
                 when (current) {
                     0 -> StepWelcome()
-                    1 -> StepBackend(
-                        value = backendUrl,
-                        onChange = { backendUrl = it },
-                    )
-                    else -> StepAmazon(
-                        value = amazonTag,
-                        onChange = { amazonTag = it },
-                    )
+                    else -> StepAmazon(value = amazonTag, onChange = { amazonTag = it })
                 }
             }
 
@@ -181,7 +171,6 @@ fun OnboardingScreen(onDone: () -> Unit) {
                         else -> "Continue"
                     },
                     enabled = !saving && when (step) {
-                        1 -> backendUrl.isNotBlank()
                         TOTAL_STEPS - 1 -> amazonTag.isNotBlank()
                         else -> true
                     },
@@ -193,15 +182,7 @@ fun OnboardingScreen(onDone: () -> Unit) {
                                 saving = true
                                 error = null
                                 try {
-                                    Prefs.setBackendUrl(ctx, backendUrl.trim())
-                                    // Persist Amazon tag to backend settings; don't fatal
-                                    // the flow if the backend is unreachable during onboarding —
-                                    // the user can retry in Settings.
-                                    runCatching {
-                                        Repository(ctx).patchSettings(
-                                            SettingsUpdate(amazonAssociateTag = amazonTag.trim()),
-                                        )
-                                    }
+                                    Prefs.setAmazonTag(ctx, amazonTag.trim())
                                     Prefs.setOnboarded(ctx, true)
                                     onDone()
                                 } catch (t: Throwable) {
@@ -255,6 +236,7 @@ private fun StepWelcome() {
             Bullet(Icons.Outlined.Visibility, "Public page monitoring only — you add the pages.")
             Bullet(Icons.Outlined.Widgets, "Auto-generates captions. You paste and post manually.")
             Bullet(Icons.Outlined.Sell, "Amazon links rewritten to your associate tag.")
+            Bullet(Icons.Outlined.PhoneAndroid, "Runs entirely on your phone — no backend, no server.")
             Spacer(Modifier.height(16.dp))
         }
     }
@@ -276,37 +258,6 @@ private fun StepWelcome() {
             Disclosure(Icons.Outlined.Block, "No auto-posting, no auto-clicking.")
             Disclosure(Icons.Outlined.Block, "No private groups. No captcha bypass.")
             Disclosure(Icons.Outlined.Verified, "You copy the caption and post whenever you like.")
-        }
-    }
-}
-
-@Composable
-private fun StepBackend(value: String, onChange: (String) -> Unit) {
-    GlassCard(accent = NeonBlue) {
-        Column {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Outlined.Dns, contentDescription = null, tint = NeonBlue)
-                Spacer(Modifier.size(8.dp))
-                Text(
-                    "Backend URL",
-                    color = Color(0xFFE6EDF3),
-                    style = MaterialTheme.typography.titleLarge,
-                )
-            }
-            Spacer(Modifier.height(8.dp))
-            Text(
-                "Where this app talks to your FastAPI backend. Use http://10.0.2.2:8000/ from the Android emulator to reach localhost on your laptop, or your LAN IP on a physical device.",
-                color = TextMuted,
-                style = MaterialTheme.typography.bodyMedium,
-            )
-            Spacer(Modifier.height(14.dp))
-            OutlinedTextField(
-                value = value,
-                onValueChange = onChange,
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-                colors = onboardingTextColors(),
-            )
         }
     }
 }
@@ -340,7 +291,7 @@ private fun StepAmazon(value: String, onChange: (String) -> Unit) {
             )
             Spacer(Modifier.height(12.dp))
             Text(
-                "Default marketplace: amazon.com. Other marketplaces are detected automatically per post (amazon.co.uk, .in, .ae, and more).",
+                "Default marketplace: amazon.com. Other marketplaces are detected automatically per post (amazon.co.uk, .in, .ae, and 13 more).",
                 color = TextMuted,
                 style = MaterialTheme.typography.bodySmall,
             )
@@ -363,11 +314,11 @@ private fun Disclosure(icon: ImageVector, text: String) {
         Icon(
             icon,
             contentDescription = null,
-            tint = if (icon == Icons.Outlined.Verified) NeonGreen else Color(0xFFE6EDF3),
+            tint = TextMuted,
             modifier = Modifier.size(16.dp),
         )
-        Spacer(Modifier.size(10.dp))
-        Text(text, color = Color(0xFFE6EDF3), style = MaterialTheme.typography.bodySmall)
+        Spacer(Modifier.size(8.dp))
+        Text(text, color = Color(0xFFE6EDF3), style = MaterialTheme.typography.bodyMedium)
     }
 }
 

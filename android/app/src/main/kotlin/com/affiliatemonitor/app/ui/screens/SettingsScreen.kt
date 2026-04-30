@@ -1,8 +1,6 @@
 package com.affiliatemonitor.app.ui.screens
 
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -11,25 +9,20 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import com.affiliatemonitor.app.data.Prefs
 import com.affiliatemonitor.app.data.Repository
 import com.affiliatemonitor.app.data.SettingsOut
 import com.affiliatemonitor.app.data.SettingsUpdate
@@ -41,25 +34,13 @@ import com.affiliatemonitor.app.ui.theme.GlassCard
 import com.affiliatemonitor.app.ui.theme.NeonBlue
 import com.affiliatemonitor.app.ui.theme.NeonGreen
 import com.affiliatemonitor.app.ui.theme.TextMuted
-import kotlinx.coroutines.flow.Flow
+import com.affiliatemonitor.app.work.ScanWorker
 import kotlinx.coroutines.launch
 
 @Composable
 fun SettingsScreen() {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
-
-    val backendUrlFlow: Flow<String> = remember { Prefs.backendUrl(ctx) }
-    val storedBackendUrl by backendUrlFlow.collectAsState(initial = "http://10.0.2.2:8000/")
-
-    var backendUrl by remember { mutableStateOf("") }
-    var loadedPrefs by remember { mutableStateOf(false) }
-    LaunchedEffect(storedBackendUrl) {
-        if (!loadedPrefs) {
-            backendUrl = storedBackendUrl
-            loadedPrefs = true
-        }
-    }
 
     var settings by remember { mutableStateOf<SettingsOut?>(null) }
     var loading by remember { mutableStateOf(true) }
@@ -71,7 +52,6 @@ fun SettingsScreen() {
     var intervalMin by remember { mutableStateOf("") }
     var dailyLimit by remember { mutableStateOf("") }
     var delaySec by remember { mutableStateOf("") }
-    var testMode by remember { mutableStateOf(false) }
 
     suspend fun refresh() {
         loading = true
@@ -83,7 +63,6 @@ fun SettingsScreen() {
             intervalMin = s.scanIntervalMinutes.toString()
             dailyLimit = s.dailyImportLimit.toString()
             delaySec = s.delayBetweenPageScansSeconds.toString()
-            testMode = s.testMode
         } catch (t: Throwable) {
             error = t.message
         } finally {
@@ -91,37 +70,18 @@ fun SettingsScreen() {
         }
     }
 
-    LaunchedEffect(storedBackendUrl) { refresh() }
+    LaunchedEffect(Unit) { refresh() }
 
-    ScreenScaffold(title = "Settings", subtitle = "Backend, associate tag, scan controls") {
+    ScreenScaffold(title = "Settings", subtitle = "Associate tag, scan controls — all on-device") {
         Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
             GlassCard(accent = NeonBlue) {
                 Column {
-                    Text("Backend URL", style = MaterialTheme.typography.titleMedium)
+                    Text("Android-only mode", style = MaterialTheme.typography.titleMedium)
+                    Spacer(Modifier.height(4.dp))
                     Text(
-                        "Where the app talks to your FastAPI backend. Use http://10.0.2.2:8000/ from the Android emulator to reach localhost.",
+                        "This app runs entirely on your phone. Sources, posts, scheduling, link rewriting and dedup all happen locally — there's no backend URL to configure and no server to run.",
                         color = TextMuted,
                         style = MaterialTheme.typography.bodySmall,
-                    )
-                    Spacer(Modifier.height(8.dp))
-                    OutlinedTextField(
-                        value = backendUrl,
-                        onValueChange = { backendUrl = it },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = textColors(),
-                    )
-                    Spacer(Modifier.height(10.dp))
-                    PrimaryButton(
-                        text = "Save backend URL",
-                        onClick = {
-                            scope.launch {
-                                Prefs.setBackendUrl(ctx, backendUrl)
-                                message = "Backend URL saved"
-                                refresh()
-                            }
-                        },
-                        modifier = Modifier.fillMaxWidth(),
                     )
                 }
             }
@@ -152,6 +112,11 @@ fun SettingsScreen() {
                                 modifier = Modifier.fillMaxWidth(),
                                 colors = textColors(),
                             )
+                            Text(
+                                "Android limits periodic background work to a 15-minute minimum. Default is 60 minutes.",
+                                color = TextMuted,
+                                style = MaterialTheme.typography.bodySmall,
+                            )
                             Spacer(Modifier.height(10.dp))
                             Text("Daily import limit", style = MaterialTheme.typography.titleMedium)
                             OutlinedTextField(
@@ -173,24 +138,6 @@ fun SettingsScreen() {
                                 colors = textColors(),
                             )
                             Spacer(Modifier.height(12.dp))
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text("Test mode", style = MaterialTheme.typography.titleMedium)
-                                Spacer(Modifier.weight(1f))
-                                Switch(
-                                    checked = testMode,
-                                    onCheckedChange = { testMode = it },
-                                    colors = SwitchDefaults.colors(
-                                        checkedThumbColor = NeonGreen,
-                                        checkedTrackColor = NeonGreen.copy(alpha = 0.3f),
-                                    ),
-                                )
-                            }
-                            Text(
-                                "When on, the backend uses bundled sample data and makes no outbound requests.",
-                                color = TextMuted,
-                                style = MaterialTheme.typography.bodySmall,
-                            )
-                            Spacer(Modifier.height(12.dp))
                             PrimaryButton(
                                 text = if (saving) "Saving…" else "Save settings",
                                 enabled = !saving,
@@ -205,10 +152,11 @@ fun SettingsScreen() {
                                                 scanIntervalMinutes = intervalMin.toIntOrNull(),
                                                 dailyImportLimit = dailyLimit.toIntOrNull(),
                                                 delayBetweenPageScansSeconds = delaySec.toIntOrNull(),
-                                                testMode = testMode,
                                             )
                                             val out = Repository(ctx).patchSettings(update)
                                             settings = out
+                                            // Reschedule background scans with the new interval.
+                                            ScanWorker.schedule(ctx)
                                             message = "Settings saved"
                                         } catch (t: Throwable) {
                                             error = t.message ?: "Failed to save settings"
