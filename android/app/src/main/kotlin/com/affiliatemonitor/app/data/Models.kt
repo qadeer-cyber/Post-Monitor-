@@ -40,8 +40,13 @@ data class SourcePreview(
     val isPublic: Boolean,
     val pageName: String? = null,
     val recentPostsCount: Int = 0,
+    val amazonLinksDetected: Int = 0,
     val samplePosts: List<SourcePreviewPost> = emptyList(),
     val error: String? = null,
+    val blocked: Boolean = false,
+    val httpStatus: Int? = null,
+    val htmlTitle: String? = null,
+    val htmlSnippet: String? = null,
 )
 
 data class SourceCreate(val url: String, val name: String? = null, val enabled: Boolean = true)

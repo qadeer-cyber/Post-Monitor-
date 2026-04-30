@@ -1,15 +1,20 @@
 package com.affiliatemonitor.app.ui.screens
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Snackbar
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -18,6 +23,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -40,6 +46,7 @@ fun DashboardScreen() {
     val ctx = LocalContext.current
     val repo = remember { Repository(ctx) }
     val scope = rememberCoroutineScope()
+    val snackbar = remember { SnackbarHostState() }
 
     var data by remember { mutableStateOf<DashboardOut?>(null) }
     var loading by remember { mutableStateOf(true) }
@@ -60,108 +67,130 @@ fun DashboardScreen() {
 
     LaunchedEffect(Unit) { refresh() }
 
-    ScreenScaffold(title = "Dashboard", subtitle = "At-a-glance stats") {
-        Column(Modifier.verticalScroll(rememberScrollState())) {
-            when {
-                loading && data == null -> LoadingIndicator()
-                error != null && data == null -> ErrorBanner(error!!) { scope.launch { refresh() } }
-                data != null -> {
-                    val d = data!!
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        StatTile(
-                            "Total sources",
-                            d.totalSources.toString(),
-                            accent = NeonBlue,
-                            modifier = Modifier.weight(1f),
-                        )
-                        StatTile(
-                            "Active sources",
-                            d.activeSources.toString(),
-                            accent = NeonGreen,
-                            modifier = Modifier.weight(1f),
-                        )
-                    }
-                    Spacer(Modifier.height(12.dp))
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        StatTile(
-                            "Posts today",
-                            d.newPostsToday.toString(),
-                            accent = NeonGreen,
-                            modifier = Modifier.weight(1f),
-                        )
-                        StatTile(
-                            "Valid Amazon posts",
-                            d.validAmazonPosts.toString(),
-                            accent = NeonBlue,
-                            modifier = Modifier.weight(1f),
-                        )
-                    }
-                    Spacer(Modifier.height(12.dp))
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        StatTile(
-                            "Queue size",
-                            d.queueSize.toString(),
-                            accent = NeonBlue,
-                            modifier = Modifier.weight(1f),
-                        )
-                        StatTile(
-                            "Duplicates",
-                            d.duplicatesSkipped.toString(),
-                            accent = WarnAmber,
-                            modifier = Modifier.weight(1f),
-                        )
-                    }
-                    Spacer(Modifier.height(12.dp))
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        StatTile(
-                            "Failed imports",
-                            d.failedImports.toString(),
-                            accent = Danger,
-                            modifier = Modifier.weight(1f),
-                        )
-                        StatTile(
-                            "Last scan",
-                            d.lastScanAt?.take(19)?.replace("T", " ") ?: "—",
-                            accent = NeonBlue,
-                            modifier = Modifier.weight(1f),
-                        )
-                    }
-                    Spacer(Modifier.height(20.dp))
-                    PrimaryButton(
-                        text = if (scanning) "Scanning…" else "Scan Now",
-                        onClick = {
-                            scope.launch {
-                                scanning = true
-                                error = null
-                                try {
-                                    val res = repo.scanAll()
-                                    refresh()
-                                    if (!res.ok) {
-                                        error = "Scan finished with ${res.failed} failure(s). Check Logs."
-                                    }
-                                } catch (t: Throwable) {
-                                    error = t.message ?: "Scan failed"
-                                } finally {
-                                    scanning = false
-                                }
-                            }
-                        },
-                        enabled = !scanning,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    if (error != null) {
+    Box(Modifier.fillMaxSize()) {
+        ScreenScaffold(title = "Dashboard", subtitle = "At-a-glance stats") {
+            Column(Modifier.verticalScroll(rememberScrollState())) {
+                when {
+                    loading && data == null -> LoadingIndicator()
+                    error != null && data == null -> ErrorBanner(error!!) { scope.launch { refresh() } }
+                    data != null -> {
+                        val d = data!!
+                        if (d.totalSources == 0) {
+                            ErrorBanner("Add a source to start. Open the Sources tab and paste a public Facebook page URL.")
+                            Spacer(Modifier.height(12.dp))
+                        }
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            StatTile(
+                                "Total sources",
+                                d.totalSources.toString(),
+                                accent = NeonBlue,
+                                modifier = Modifier.weight(1f),
+                            )
+                            StatTile(
+                                "Active sources",
+                                d.activeSources.toString(),
+                                accent = NeonGreen,
+                                modifier = Modifier.weight(1f),
+                            )
+                        }
                         Spacer(Modifier.height(12.dp))
-                        Text(error!!, style = MaterialTheme.typography.bodySmall, color = Danger)
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            StatTile(
+                                "Posts today",
+                                d.newPostsToday.toString(),
+                                accent = NeonGreen,
+                                modifier = Modifier.weight(1f),
+                            )
+                            StatTile(
+                                "Valid Amazon posts",
+                                d.validAmazonPosts.toString(),
+                                accent = NeonBlue,
+                                modifier = Modifier.weight(1f),
+                            )
+                        }
+                        Spacer(Modifier.height(12.dp))
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            StatTile(
+                                "Queue size",
+                                d.queueSize.toString(),
+                                accent = NeonBlue,
+                                modifier = Modifier.weight(1f),
+                            )
+                            StatTile(
+                                "Duplicates",
+                                d.duplicatesSkipped.toString(),
+                                accent = WarnAmber,
+                                modifier = Modifier.weight(1f),
+                            )
+                        }
+                        Spacer(Modifier.height(12.dp))
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            StatTile(
+                                "Failed imports",
+                                d.failedImports.toString(),
+                                accent = Danger,
+                                modifier = Modifier.weight(1f),
+                            )
+                            StatTile(
+                                "Last scan",
+                                d.lastScanAt?.take(19)?.replace("T", " ") ?: "—",
+                                accent = NeonBlue,
+                                modifier = Modifier.weight(1f),
+                            )
+                        }
+                        Spacer(Modifier.height(20.dp))
+                        PrimaryButton(
+                            text = if (scanning) "Scanning…" else "Scan Now",
+                            onClick = {
+                                scope.launch {
+                                    scanning = true
+                                    error = null
+                                    try {
+                                        val res = repo.scanAll()
+                                        refresh()
+                                        val msg = if (!res.ok) {
+                                            "Scan completed with ${res.failed} failure(s): " +
+                                                "${res.postsFound} posts found, ${res.postsImported} valid Amazon posts. " +
+                                                "Check Logs."
+                                        } else {
+                                            "Scan completed: ${res.postsFound} posts found, " +
+                                                "${res.postsImported} valid Amazon posts"
+                                        }
+                                        snackbar.showSnackbar(msg)
+                                    } catch (t: Throwable) {
+                                        val reason = t.message ?: "Scan failed"
+                                        error = reason
+                                        snackbar.showSnackbar("Scan failed: $reason")
+                                    } finally {
+                                        scanning = false
+                                    }
+                                }
+                            },
+                            enabled = !scanning,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        if (error != null) {
+                            Spacer(Modifier.height(12.dp))
+                            Text(error!!, style = MaterialTheme.typography.bodySmall, color = Danger)
+                        }
+                        Spacer(Modifier.height(12.dp))
+                        Text(
+                            "Tip: add sources in the Sources tab, then tap Scan Now.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = TextMuted,
+                            modifier = Modifier.padding(top = 4.dp),
+                        )
                     }
-                    Spacer(Modifier.height(12.dp))
-                    Text(
-                        "Tip: add sources in the Sources tab, then tap Scan Now.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = TextMuted,
-                        modifier = Modifier.padding(top = 4.dp),
-                    )
                 }
             }
+        }
+        SnackbarHost(
+            hostState = snackbar,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(16.dp),
+        ) { data ->
+            Snackbar(snackbarData = data)
         }
     }
 }

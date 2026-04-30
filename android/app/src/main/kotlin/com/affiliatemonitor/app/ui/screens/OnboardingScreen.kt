@@ -51,6 +51,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.affiliatemonitor.app.R
 import com.affiliatemonitor.app.data.Prefs
 import com.affiliatemonitor.app.ui.PrimaryButton
@@ -224,20 +225,20 @@ private fun StepWelcome() {
             Text(
                 "Welcome to Affiliate Post Monitor",
                 color = Color(0xFFE6EDF3),
-                style = MaterialTheme.typography.headlineMedium,
+                style = MaterialTheme.typography.headlineMedium.copy(lineHeight = 32.sp),
             )
-            Spacer(Modifier.height(6.dp))
+            Spacer(Modifier.height(8.dp))
             Text(
                 "Watch public Facebook Pages for new Amazon product posts. We turn each one into a ready-to-copy caption with your affiliate tag.",
                 color = TextMuted,
-                style = MaterialTheme.typography.bodyMedium,
+                style = MaterialTheme.typography.bodyMedium.copy(lineHeight = 20.sp),
             )
             Spacer(Modifier.height(18.dp))
             Bullet(Icons.Outlined.Visibility, "Public page monitoring only — you add the pages.")
             Bullet(Icons.Outlined.Widgets, "Auto-generates captions. You paste and post manually.")
             Bullet(Icons.Outlined.Sell, "Amazon links rewritten to your associate tag.")
             Bullet(Icons.Outlined.PhoneAndroid, "Runs entirely on your phone — no backend, no server.")
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(8.dp))
         }
     }
     Spacer(Modifier.height(12.dp))
@@ -253,7 +254,7 @@ private fun StepWelcome() {
                     fontWeight = FontWeight.SemiBold,
                 )
             }
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(10.dp))
             Disclosure(Icons.Outlined.Block, "No Facebook login, no passwords.")
             Disclosure(Icons.Outlined.Block, "No auto-posting, no auto-clicking.")
             Disclosure(Icons.Outlined.Block, "No private groups. No captcha bypass.")
@@ -279,7 +280,7 @@ private fun StepAmazon(value: String, onChange: (String) -> Unit) {
             Text(
                 "Every generated affiliate link will include this tag. We've prefilled yours — adjust if needed.",
                 color = TextMuted,
-                style = MaterialTheme.typography.bodyMedium,
+                style = MaterialTheme.typography.bodyMedium.copy(lineHeight = 20.sp),
             )
             Spacer(Modifier.height(14.dp))
             OutlinedTextField(
@@ -293,7 +294,7 @@ private fun StepAmazon(value: String, onChange: (String) -> Unit) {
             Text(
                 "Default marketplace: amazon.com. Other marketplaces are detected automatically per post (amazon.co.uk, .in, .ae, and 13 more).",
                 color = TextMuted,
-                style = MaterialTheme.typography.bodySmall,
+                style = MaterialTheme.typography.bodySmall.copy(lineHeight = 18.sp),
             )
         }
     }
@@ -301,24 +302,53 @@ private fun StepAmazon(value: String, onChange: (String) -> Unit) {
 
 @Composable
 private fun Bullet(icon: ImageVector, text: String) {
-    Row(modifier = Modifier.padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-        Icon(icon, contentDescription = null, tint = NeonBlue, modifier = Modifier.size(18.dp))
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 6.dp),
+        verticalAlignment = Alignment.Top,
+    ) {
+        Icon(
+            icon,
+            contentDescription = null,
+            tint = NeonBlue,
+            modifier = Modifier
+                .padding(top = 2.dp)
+                .size(18.dp),
+        )
         Spacer(Modifier.size(10.dp))
-        Text(text, color = Color(0xFFE6EDF3), style = MaterialTheme.typography.bodyMedium)
+        Text(
+            text,
+            color = Color(0xFFE6EDF3),
+            style = MaterialTheme.typography.bodyMedium.copy(lineHeight = 20.sp),
+            modifier = Modifier.fillMaxWidth(),
+        )
     }
 }
 
 @Composable
 private fun Disclosure(icon: ImageVector, text: String) {
-    Row(modifier = Modifier.padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.Top,
+    ) {
         Icon(
             icon,
             contentDescription = null,
             tint = TextMuted,
-            modifier = Modifier.size(16.dp),
+            modifier = Modifier
+                .padding(top = 3.dp)
+                .size(16.dp),
         )
         Spacer(Modifier.size(8.dp))
-        Text(text, color = Color(0xFFE6EDF3), style = MaterialTheme.typography.bodyMedium)
+        Text(
+            text,
+            color = Color(0xFFE6EDF3),
+            style = MaterialTheme.typography.bodyMedium.copy(lineHeight = 20.sp),
+            modifier = Modifier.fillMaxWidth(),
+        )
     }
 }
 

@@ -1,5 +1,6 @@
 package com.affiliatemonitor.app.data.facebook
 
+import android.content.Context
 import com.affiliatemonitor.app.data.amazon.AmazonLink
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -10,15 +11,35 @@ import org.jsoup.Jsoup
  *
  * Strategy:
  *   1. Fetch HTML with OkHttp using a desktop-style UA.
- *   2. Parse Open Graph metadata via Jsoup (og:site_name, og:title, og:description, og:image).
- *   3. Walk the HTML for anything that looks like a public post permalink.
- *   4. Extract Amazon URLs from the page text + raw HTML so short links inside JSON
- *      blobs are picked up too.
+ *   2. Detect login walls / blocked content explicitly so the scanner can
+ *      surface "Facebook blocked content. Try another public page." instead
+ *      of failing silently.
+ *   3. Parse Open Graph metadata via Jsoup (og:site_name, og:title,
+ *      og:description, og:image).
+ *   4. Walk the HTML for anything that looks like a public post permalink.
+ *   5. Extract Amazon URLs from the page text + raw HTML so short links
+ *      inside JSON blobs are picked up too.
  *
- * Stays shallow on purpose — never tries to defeat login walls or solve captchas,
- * never logs in, never touches private endpoints.
+ * Stays shallow on purpose — never tries to defeat login walls or solve
+ * captchas, never logs in, never touches private endpoints.
  */
 object Scraper {
+
+    /** Markers that indicate Facebook has served a login/blocked page rather than real content. */
+    private val LOGIN_WALL_TITLE_HINTS = listOf(
+        "log in or sign up",
+        "log into facebook",
+        "you must log in",
+        "facebook - log in",
+    )
+
+    private val LOGIN_WALL_BODY_HINTS = listOf(
+        "you must log in to continue",
+        "login required",
+        "this content isn't available",
+        "this content isn't available right now",
+        "page not found",
+    )
 
     data class ScrapedPost(
         val sourcePostUrl: String,
@@ -32,6 +53,16 @@ object Scraper {
         val pageName: String? = null,
         val posts: List<ScrapedPost> = emptyList(),
         val error: String? = null,
+        /** True when Facebook served a login-wall / blocked HTML rather than real content. */
+        val blocked: Boolean = false,
+        /** HTTP status code observed on the fetch (null if the call threw before a response). */
+        val httpStatus: Int? = null,
+        /** Contents of `<title>` in the served HTML, if any. */
+        val htmlTitle: String? = null,
+        /** First 200 chars of the served HTML, useful for diagnostics. */
+        val htmlSnippet: String? = null,
+        /** Amazon URLs detected anywhere in the HTML (same content fed into ScrapedPost). */
+        val amazonUrlsOnPage: List<String> = emptyList(),
     )
 
     private val PERMALINK_RE = Regex(
@@ -53,16 +84,47 @@ object Scraper {
         return out.toList()
     }
 
-    fun parseHtml(html: String, pageUrl: String): ScrapedPage {
+    /** Cheap login-wall / blocked-content detector. */
+    private fun looksBlocked(title: String?, bodyText: String, hasOg: Boolean, permalinkCount: Int): Boolean {
+        val titleLower = title?.lowercase().orEmpty()
+        if (LOGIN_WALL_TITLE_HINTS.any { it in titleLower }) return true
+        val bodyLower = bodyText.take(2000).lowercase()
+        if (LOGIN_WALL_BODY_HINTS.any { it in bodyLower }) return true
+        // No OG metadata AND no detectable post permalinks → almost certainly a login wall or
+        // an interstitial page rather than a real public page.
+        if (!hasOg && permalinkCount == 0) return true
+        return false
+    }
+
+    fun parseHtml(html: String, pageUrl: String, httpStatus: Int? = null): ScrapedPage {
         val doc = Jsoup.parse(html)
+        val htmlTitle = doc.selectFirst("title")?.text()?.takeIf { it.isNotBlank() }
         val pageName = doc.selectFirst("meta[property=og:site_name]")?.attr("content")?.takeIf { it.isNotBlank() }
             ?: doc.selectFirst("meta[property=og:title]")?.attr("content")?.takeIf { it.isNotBlank() }
         val pageDesc = doc.selectFirst("meta[property=og:description]")?.attr("content").orEmpty()
         val pageImage = doc.selectFirst("meta[property=og:image]")?.attr("content")?.takeIf { it.isNotBlank() }
+        val hasOg = pageName != null || pageDesc.isNotBlank() || pageImage != null
 
         val visibleText = doc.text()
         val amazonInPage = AmazonLink.findAmazonUrls("$visibleText $html")
         val permalinks = extractPermalinks(html)
+        val htmlSnippet = html.take(200).replace('\n', ' ').replace('\r', ' ').trim()
+
+        val blocked = looksBlocked(htmlTitle, visibleText, hasOg, permalinks.size)
+
+        if (blocked) {
+            return ScrapedPage(
+                pageUrl = pageUrl,
+                pageName = pageName,
+                posts = emptyList(),
+                error = "Facebook blocked content. Try another public page.",
+                blocked = true,
+                httpStatus = httpStatus,
+                htmlTitle = htmlTitle,
+                htmlSnippet = htmlSnippet,
+                amazonUrlsOnPage = amazonInPage,
+            )
+        }
 
         val posts = when {
             permalinks.isNotEmpty() -> permalinks.map { link ->
@@ -83,7 +145,15 @@ object Scraper {
             )
             else -> emptyList()
         }
-        return ScrapedPage(pageUrl = pageUrl, pageName = pageName, posts = posts)
+        return ScrapedPage(
+            pageUrl = pageUrl,
+            pageName = pageName,
+            posts = posts,
+            httpStatus = httpStatus,
+            htmlTitle = htmlTitle,
+            htmlSnippet = htmlSnippet,
+            amazonUrlsOnPage = amazonInPage,
+        )
     }
 
     fun fetch(url: String, client: OkHttpClient, userAgent: String): ScrapedPage {
@@ -91,18 +161,150 @@ object Scraper {
             .url(url)
             .header("User-Agent", userAgent)
             .header("Accept-Language", "en-US,en;q=0.9")
+            .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
             .build()
         return try {
             client.newCall(req).execute().use { resp ->
-                if (!resp.isSuccessful) {
-                    return ScrapedPage(pageUrl = url, error = "HTTP ${resp.code} from $url")
-                }
+                val status = resp.code
                 val body = resp.body?.string().orEmpty()
-                if (body.isBlank()) ScrapedPage(pageUrl = url, error = "empty response body")
-                else parseHtml(body, url)
+                if (!resp.isSuccessful) {
+                    val titleFromHtml = if (body.isNotBlank()) {
+                        runCatching { Jsoup.parse(body).selectFirst("title")?.text() }.getOrNull()
+                    } else null
+                    return ScrapedPage(
+                        pageUrl = url,
+                        error = "HTTP $status from Facebook",
+                        httpStatus = status,
+                        htmlTitle = titleFromHtml,
+                        htmlSnippet = body.take(200).replace('\n', ' ').replace('\r', ' ').trim(),
+                    )
+                }
+                if (body.isBlank()) {
+                    return ScrapedPage(
+                        pageUrl = url,
+                        error = "Facebook returned an empty response body",
+                        httpStatus = status,
+                    )
+                }
+                parseHtml(body, url, httpStatus = status)
             }
         } catch (t: Throwable) {
-            ScrapedPage(pageUrl = url, error = "network error: ${t.message ?: t.javaClass.simpleName}")
+            ScrapedPage(
+                pageUrl = url,
+                error = "Network error: ${t.message ?: t.javaClass.simpleName}",
+            )
         }
     }
+
+    /** Structured log event emitted by [fetchWithFallback]. The caller writes these to its logDao. */
+    data class FetchEvent(
+        val category: String,
+        val level: String,
+        val message: String,
+        val detail: String? = null,
+    )
+
+    /** Result of [fetchWithFallback]: the parsed page + the events that should be logged. */
+    data class FetchOutcome(
+        val page: ScrapedPage,
+        val usedWebView: Boolean,
+        val events: List<FetchEvent>,
+    )
+
+    /**
+     * Fetch [url], using OkHttp first and falling back to a hidden Android WebView
+     * when Facebook returns a non-200, blocked content, or HTML without OG metadata.
+     *
+     * Returns the merged [ScrapedPage] plus a list of [FetchEvent]s the caller is
+     * expected to persist as log rows. This keeps Scraper free of any DB / Android
+     * Log dependency while still surfacing the structured categories the spec
+     * requires (`okhttp_fetch_failed`, `facebook_block_detected`,
+     * `webview_fallback_started`, `webview_html_extracted`, `webview_parse_success`,
+     * `webview_parse_failed`).
+     */
+    suspend fun fetchWithFallback(
+        context: Context,
+        url: String,
+        client: OkHttpClient,
+        userAgent: String,
+    ): FetchOutcome {
+        val events = mutableListOf<FetchEvent>()
+        val first = fetch(url, client, userAgent)
+
+        val httpFailed = first.error != null || (first.httpStatus != null && first.httpStatus !in 200..299)
+        val blocked = first.blocked
+
+        if (!httpFailed && !blocked) {
+            return FetchOutcome(page = first, usedWebView = false, events = events)
+        }
+
+        if (httpFailed) {
+            events += FetchEvent(
+                category = "okhttp_fetch_failed",
+                level = "warn",
+                message = "OkHttp fetch failed for $url: ${first.error ?: "HTTP ${first.httpStatus}"}",
+                detail = "status=${first.httpStatus ?: "n/a"} title='${first.htmlTitle?.take(120) ?: ""}' " +
+                    "snippet='${first.htmlSnippet?.take(200) ?: ""}'",
+            )
+        }
+        if (blocked) {
+            events += FetchEvent(
+                category = "facebook_block_detected",
+                level = "warn",
+                message = "Facebook blocked content for $url (login wall / interstitial detected).",
+                detail = "title='${first.htmlTitle?.take(120) ?: ""}' snippet='${first.htmlSnippet?.take(200) ?: ""}'",
+            )
+        }
+
+        events += FetchEvent(
+            category = "webview_fallback_started",
+            level = "info",
+            message = "Using browser rendering to fetch page",
+            detail = "url=$url",
+        )
+
+        val rendered = WebViewFetcher.fetch(context, url, userAgent)
+        if (rendered.html.isNullOrBlank()) {
+            events += FetchEvent(
+                category = "webview_parse_failed",
+                level = "error",
+                message = "WebView fallback could not render $url: ${rendered.error ?: "no HTML"}",
+                detail = "finalUrl=${rendered.finalUrl ?: url}",
+            )
+            // Surface the original (blocked) outcome so the UI still shows the blocked banner.
+            return FetchOutcome(page = first.copyAsBlockedFallback(), usedWebView = true, events = events)
+        }
+
+        events += FetchEvent(
+            category = "webview_html_extracted",
+            level = "info",
+            message = "WebView returned ${rendered.html.length} chars of HTML for $url",
+            detail = "finalUrl=${rendered.finalUrl ?: url} snippet='${rendered.html.take(200).replace('\n', ' ').replace('\r', ' ').trim()}'",
+        )
+
+        val parsed = parseHtml(rendered.html, rendered.finalUrl ?: url, httpStatus = 200)
+
+        if (parsed.blocked || parsed.posts.isEmpty() && parsed.amazonUrlsOnPage.isEmpty()) {
+            events += FetchEvent(
+                category = "webview_parse_failed",
+                level = "warn",
+                message = "WebView rendered HTML did not yield public posts or Amazon links for $url",
+                detail = "title='${parsed.htmlTitle?.take(120) ?: ""}' snippet='${parsed.htmlSnippet?.take(200) ?: ""}'",
+            )
+        } else {
+            events += FetchEvent(
+                category = "webview_parse_success",
+                level = "info",
+                message = "WebView fallback parsed ${parsed.posts.size} post permalink(s) and ${parsed.amazonUrlsOnPage.size} Amazon link(s) for $url",
+                detail = "title='${parsed.htmlTitle?.take(120) ?: ""}'",
+            )
+        }
+
+        return FetchOutcome(page = parsed, usedWebView = true, events = events)
+    }
+
+    private fun ScrapedPage.copyAsBlockedFallback(): ScrapedPage = copy(
+        blocked = true,
+        error = "Facebook blocked content. Try another public page.",
+    )
 }
