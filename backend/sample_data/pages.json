@@ -1,0 +1,33 @@
+{
+  "https://www.facebook.com/SampleDealsPage1": {
+    "page_name": "Sample Deals Page",
+    "posts": [
+      {
+        "source_post_url": "https://www.facebook.com/SampleDealsPage1/posts/111111",
+        "description": "Grab this Echo Dot (5th Gen) at a great price today — smart speaker with improved bass and Alexa built in.",
+        "image_url": "https://via.placeholder.com/600x400.png?text=Echo+Dot",
+        "post_time": "2026-04-28T12:30:00+00:00",
+        "amazon_urls": ["https://www.amazon.com/dp/B09B8V1LZ3?ref=samplepage"]
+      },
+      {
+        "source_post_url": "https://www.facebook.com/SampleDealsPage1/posts/222222",
+        "description": "Kindle Paperwhite — now thinner, lighter, and with a faster page turn. Perfect travel companion.",
+        "image_url": "https://via.placeholder.com/600x400.png?text=Kindle",
+        "post_time": "2026-04-29T09:00:00+00:00",
+        "amazon_urls": ["https://www.amazon.com/dp/B08KTZ8249?ref=samplepage"]
+      }
+    ]
+  },
+  "https://www.facebook.com/SampleDealsPage2": {
+    "page_name": "Budget Gadgets UK",
+    "posts": [
+      {
+        "source_post_url": "https://www.facebook.com/SampleDealsPage2/posts/333333",
+        "description": "UK deal alert: Anker USB-C hub with HDMI + Ethernet. Reliable, compact, great reviews.",
+        "image_url": "https://via.placeholder.com/600x400.png?text=Anker+Hub",
+        "post_time": "2026-04-29T15:45:00+00:00",
+        "amazon_urls": ["https://www.amazon.co.uk/gp/product/B08C7KG5LP/"]
+      }
+    ]
+  }
+}
