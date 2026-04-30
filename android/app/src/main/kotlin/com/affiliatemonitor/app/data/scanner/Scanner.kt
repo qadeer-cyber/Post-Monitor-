@@ -5,6 +5,7 @@ import com.affiliatemonitor.app.data.Prefs
 import com.affiliatemonitor.app.data.amazon.AmazonLink
 import com.affiliatemonitor.app.data.amazon.buildCaption
 import com.affiliatemonitor.app.data.amazon.captionHash
+import com.affiliatemonitor.app.data.amazon.detectCouponCode
 import com.affiliatemonitor.app.data.facebook.Scraper
 import com.affiliatemonitor.app.data.local.AppDatabase
 import com.affiliatemonitor.app.data.local.LogEntity
@@ -391,6 +392,7 @@ class Scanner(private val context: Context) {
                         marketplace = parsed.marketplace,
                         finalCaption = caption,
                         captionHash = cHash,
+                        couponCode = detectCouponCode(post.description),
                     ),
                 )
                 imported += 1
