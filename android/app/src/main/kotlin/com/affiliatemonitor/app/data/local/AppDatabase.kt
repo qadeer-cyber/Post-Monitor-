@@ -12,7 +12,7 @@ import androidx.room.RoomDatabase
         LogEntity::class,
         ScanHistoryEntity::class,
     ],
-    version = 1,
+    version = 2,
     exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {

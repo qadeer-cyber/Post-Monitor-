@@ -231,7 +231,12 @@ object Scraper {
         val events = mutableListOf<FetchEvent>()
         val first = fetch(url, client, userAgent)
 
-        val httpFailed = first.error != null || (first.httpStatus != null && first.httpStatus !in 200..299)
+        // Only treat as an OkHttp transport failure when *either* the HTTP layer
+        // returned an error/non-2xx, *or* a network exception was raised. A 200
+        // response that was later flagged as blocked content is NOT an OkHttp
+        // failure — it gets reported separately as `facebook_block_detected`.
+        val httpFailed = (first.httpStatus != null && first.httpStatus !in 200..299) ||
+            (first.error != null && !first.blocked)
         val blocked = first.blocked
 
         if (!httpFailed && !blocked) {

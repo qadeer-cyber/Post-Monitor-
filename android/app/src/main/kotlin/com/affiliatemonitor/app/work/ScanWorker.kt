@@ -7,7 +7,7 @@ import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import com.affiliatemonitor.app.data.Prefs
-import com.affiliatemonitor.app.data.scanner.Scanner
+import com.affiliatemonitor.app.data.Repository
 import java.util.concurrent.TimeUnit
 
 class ScanWorker(
@@ -16,7 +16,14 @@ class ScanWorker(
 ) : CoroutineWorker(appContext, params) {
 
     override suspend fun doWork(): Result = try {
-        Scanner(applicationContext).scanAll()
+        // Facebook page scanning is disabled — Facebook actively blocks both
+        // OkHttp and our headless WebView path on most devices, so periodic
+        // page scans produce nothing but blocked-content errors. The worker
+        // now drives the Reddit deals feed instead (when the user has it
+        // enabled in Settings → Input Hub).
+        if (Prefs.redditFeedEnabledValue(applicationContext)) {
+            Repository(applicationContext).runRedditFeedScan()
+        }
         Result.success()
     } catch (t: Throwable) {
         Result.retry()

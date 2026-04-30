@@ -37,6 +37,7 @@ import com.affiliatemonitor.app.data.Repository
 import com.affiliatemonitor.app.ui.DangerButton
 import com.affiliatemonitor.app.ui.ErrorBanner
 import com.affiliatemonitor.app.ui.LoadingIndicator
+import com.affiliatemonitor.app.ui.CouponBadge
 import com.affiliatemonitor.app.ui.PrimaryButton
 import com.affiliatemonitor.app.ui.ScreenScaffold
 import com.affiliatemonitor.app.ui.SecondaryButton
@@ -126,19 +127,26 @@ fun QueueCard(
                 AsyncImage(
                     model = post.imageUrl,
                     contentDescription = null,
+                    contentScale = androidx.compose.ui.layout.ContentScale.Crop,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .aspectRatio(1.6f)
+                        .aspectRatio(1f)
                         .clip(RoundedCornerShape(14.dp)),
                 )
                 Spacer(Modifier.height(10.dp))
             }
-            Text(
-                post.sourcePageName ?: "Unknown page",
-                color = NeonGreen,
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.SemiBold,
-            )
+            Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                Text(
+                    post.sourcePageName ?: "Unknown page",
+                    color = NeonGreen,
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.weight(1f),
+                )
+                if (!post.couponCode.isNullOrBlank()) {
+                    CouponBadge(post.couponCode)
+                }
+            }
             Spacer(Modifier.height(4.dp))
             Text(
                 post.originalDescription.take(200) + if (post.originalDescription.length > 200) "…" else "",

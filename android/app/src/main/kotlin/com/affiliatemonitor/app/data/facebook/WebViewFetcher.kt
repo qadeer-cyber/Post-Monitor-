@@ -65,6 +65,12 @@ object WebViewFetcher {
         var webView: WebView? = null
         var settled = false
         var pageStartedAt = 0L
+        // Snapshot the global CookieManager state so we can restore it on cleanup.
+        // setAcceptCookie is process-global; without this, any other WebView in the
+        // process (e.g. an OAuth flow) would silently lose cookies for the rest of
+        // the app lifetime.
+        val previousAcceptCookie =
+            runCatching { CookieManager.getInstance().acceptCookie() }.getOrDefault(true)
 
         fun cleanup() {
             mainHandler.post {
@@ -73,6 +79,9 @@ object WebViewFetcher {
                     webView?.destroy()
                 }
                 webView = null
+                runCatching {
+                    CookieManager.getInstance().setAcceptCookie(previousAcceptCookie)
+                }
             }
         }
 
