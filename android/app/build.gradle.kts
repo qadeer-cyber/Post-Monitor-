@@ -41,6 +41,8 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+        // Back-port java.time.* (and other JDK 8+ APIs) to API 24/25.
+        isCoreLibraryDesugaringEnabled = true
     }
 
     kotlinOptions {
@@ -92,6 +94,8 @@ dependencies {
     implementation(libs.work.runtime.ktx)
 
     implementation(libs.jsoup)
+
+    coreLibraryDesugaring(libs.desugar.jdk.libs)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.test.junit)
