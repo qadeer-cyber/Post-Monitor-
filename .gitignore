@@ -1,0 +1,56 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Environment
+.env
+.env.local
+*.env
+
+# Databases / runtime
+*.sqlite
+*.sqlite3
+*.db
+backend/data/
+backend/storage/
+
+# Logs
+*.log
+logs/
+
+# Android / Gradle
+.gradle/
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/.idea/
+*.iml
+android/captures/
+android/.externalNativeBuild/
+android/.cxx/
+
+# Java / Kotlin
+*.class
+*.apk
+*.aab
+*.jar
+!gradle/wrapper/gradle-wrapper.jar
+
+# OS / editors
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Playwright
+playwright-report/
+test-results/
+.cache/
