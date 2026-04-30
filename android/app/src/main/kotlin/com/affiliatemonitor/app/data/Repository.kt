@@ -51,12 +51,16 @@ class Repository(private val context: Context) {
      * scanner ignores them entirely.
      */
     private suspend fun getOrCreateVirtualSource(url: String, name: String): SourceEntity {
-        val existing = sourceDao.byUrl(url)
-        if (existing != null) return existing
-        val id = sourceDao.insert(
-            SourceEntity(url = url, name = name, enabled = false),
-        ).toInt()
-        return sourceDao.byId(id)!!
+        sourceDao.byUrl(url)?.let { return it }
+        return try {
+            val id = sourceDao.insert(
+                SourceEntity(url = url, name = name, enabled = false),
+            ).toInt()
+            sourceDao.byId(id)!!
+        } catch (_: android.database.sqlite.SQLiteConstraintException) {
+            // Lost a race with another coroutine creating the same virtual source — re-read.
+            sourceDao.byUrl(url)!!
+        }
     }
 
     private fun http() = OkHttpClient.Builder()
