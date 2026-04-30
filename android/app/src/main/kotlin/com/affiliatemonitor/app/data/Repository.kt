@@ -318,8 +318,10 @@ class Repository(private val context: Context) {
         val tag = Prefs.amazonTagValue(context)
         val style = Prefs.captionStyleValue(context)
         val client = http()
-        val outcome = Scraper.fetchWithFallback(context, url, client, ua)
         return withContext(Dispatchers.IO) {
+            // OkHttp + Jsoup is blocking; the WebView leg internally hops to
+            // Dispatchers.Main, so wrapping the whole thing in IO is safe.
+            val outcome = Scraper.fetchWithFallback(context, url, client, ua)
             val virtual = getOrCreateVirtualSource(VS_FACEBOOK_URL, "Manual: Facebook posts")
             outcome.events.forEach { ev ->
                 logDao.insert(
@@ -416,8 +418,8 @@ class Repository(private val context: Context) {
         val style = Prefs.captionStyleValue(context)
         val ua = Prefs.userAgentValue(context)
         val client = http()
-        val productTitle = runCatching { fetchAmazonOgTitle(url, client, ua) }.getOrNull()
         return withContext(Dispatchers.IO) {
+            val productTitle = runCatching { fetchAmazonOgTitle(url, client, ua) }.getOrNull()
             val virtual = getOrCreateVirtualSource(VS_AMAZON_URL, "Manual: Amazon URLs")
             val res = importer.importPost(
                 sourceId = virtual.id,

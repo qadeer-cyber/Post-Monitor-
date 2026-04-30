@@ -357,7 +357,11 @@ class Scanner(private val context: Context) {
                     )
                     continue
                 }
-                val caption = buildCaption(post.description, parsed.affiliateUrl)
+                val caption = buildCaption(
+                    originalDescription = post.description,
+                    affiliateLink = parsed.affiliateUrl,
+                    style = Prefs.captionStyleValue(context),
+                )
                 val cHash = captionHash(caption)
                 val dup = postDao.findDuplicate(post.sourcePostUrl, parsed.asin, cHash)
                 if (dup != null) {

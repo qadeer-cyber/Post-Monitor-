@@ -38,7 +38,7 @@ object RedditFeed {
         limit: Int = 25,
     ): List<Item> {
         val out = mutableListOf<Item>()
-        for (sub in subreddits.map { it.trim().trimStart('r', '/').trim('/') }.filter { it.isNotEmpty() }) {
+        for (sub in subreddits.map { it.trim().removePrefix("/").removePrefix("r/").trim('/') }.filter { it.isNotEmpty() }) {
             runCatching {
                 val items = fetchOne(sub, client, userAgent, limit)
                 out += items
