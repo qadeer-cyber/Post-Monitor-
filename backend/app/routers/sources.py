@@ -14,6 +14,7 @@ from ..schemas import (
     SourceUpdate,
     SourceValidateIn,
 )
+from ..services import settings_store
 from ..services.facebook import fetch_page, load_sample_scrape
 from ..services.logs import log
 from ..services.scanner import _load_samples, run_scan
@@ -29,8 +30,13 @@ def validate_source(payload: SourceValidateIn, db: Session = Depends(get_db)) ->
     """
     url = str(payload.url).rstrip("/")
     settings = get_settings()
+    # Honour the DB-level test_mode override the user can flip via
+    # PATCH /api/settings, just like run_scan does — otherwise validation
+    # could read sample data while a real scan hits the network (or vice versa).
+    effective = settings_store.get_effective(db)
+    test_mode = bool(effective.get("test_mode", settings.test_mode))
 
-    if settings.test_mode:
+    if test_mode:
         samples = _load_samples()
         sample = samples.get(url)
         if not sample:

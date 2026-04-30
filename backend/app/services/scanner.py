@@ -78,6 +78,10 @@ def _process_post(
     if not post.amazon_urls:
         return
     tally.posts_found += 1
+    # Count every post-with-Amazon-link as "detected". Only successful imports
+    # bump valid_amazon_posts below, so the two metrics stay differentiated:
+    # posts_found >= valid_amazon_posts.
+    source.posts_found = (source.posts_found or 0) + 1
 
     # Try each amazon url in the post; first one that yields an ASIN wins.
     parsed = None
@@ -152,7 +156,6 @@ def _process_post(
         image_hash=img_hash,
     )
     db.add(row)
-    source.posts_found = (source.posts_found or 0) + 1
     source.valid_amazon_posts = (source.valid_amazon_posts or 0) + 1
     tally.posts_imported += 1
     log(
@@ -186,6 +189,45 @@ def _scan_source(
         source_id=source.id,
     )
 
+    try:
+        _scan_source_inner(
+            db,
+            source,
+            settings=settings,
+            effective=effective,
+            samples=samples,
+            http_client=http_client,
+            remaining_budget=remaining_budget,
+            tally=tally,
+        )
+    finally:
+        posts_found_here = tally.posts_found - before_found
+        amazon_extracted_here = tally.posts_imported - before_imported
+        failed_here = tally.failed - before_failed
+        log(
+            db,
+            category="scan",
+            message=(
+                f"Scan finished for {source.url}: "
+                f"posts_found={posts_found_here}, "
+                f"amazon_posts_extracted={amazon_extracted_here}, "
+                f"errors={failed_here}"
+            ),
+            source_id=source.id,
+        )
+
+
+def _scan_source_inner(
+    db: Session,
+    source: models.Source,
+    *,
+    settings: Settings,
+    effective: dict[str, object],
+    samples: dict[str, dict],
+    http_client: httpx.Client,
+    remaining_budget: int,
+    tally: ScanTally,
+) -> None:
     page: ScrapedPage
     if bool(effective.get("test_mode", settings.test_mode)):
         sample = samples.get(source.url)
@@ -243,21 +285,6 @@ def _scan_source(
         before = tally.posts_imported
         _process_post(db, source, post, associate_tag=tag, http_client=http_client, tally=tally)
         remaining_budget -= tally.posts_imported - before
-
-    posts_found_here = tally.posts_found - before_found
-    amazon_extracted_here = tally.posts_imported - before_imported
-    failed_here = tally.failed - before_failed
-    log(
-        db,
-        category="scan",
-        message=(
-            f"Scan finished for {source.url}: "
-            f"posts_found={posts_found_here}, "
-            f"amazon_posts_extracted={amazon_extracted_here}, "
-            f"errors={failed_here}"
-        ),
-        source_id=source.id,
-    )
 
 
 def run_scan(db: Session, *, source_id: int | None = None) -> models.ScanHistory:
