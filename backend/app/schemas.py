@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, Field, HttpUrl
+from pydantic import BaseModel, ConfigDict, Field, HttpUrl, model_validator
 
 
 class SourceCreate(BaseModel):
@@ -24,9 +24,37 @@ class SourceOut(BaseModel):
     url: str
     name: str | None = None
     enabled: bool
+    status: str = "inactive"
     last_checked_at: datetime | None = None
     posts_found: int
+    valid_amazon_posts: int = 0
     created_at: datetime
+
+    @model_validator(mode="after")
+    def _derive_status(self) -> "SourceOut":
+        self.status = "active" if self.enabled else "inactive"
+        return self
+
+
+class SourcePreviewPost(BaseModel):
+    url: str
+    description: str | None = None
+    image_url: str | None = None
+    has_amazon_link: bool = False
+
+
+class SourcePreview(BaseModel):
+    url: str
+    is_reachable: bool
+    is_public: bool
+    page_name: str | None = None
+    recent_posts_count: int = 0
+    sample_posts: list[SourcePreviewPost] = []
+    error: str | None = None
+
+
+class SourceValidateIn(BaseModel):
+    url: HttpUrl
 
 
 class PostOut(BaseModel):
@@ -51,8 +79,12 @@ class PostOut(BaseModel):
 
 class DashboardOut(BaseModel):
     total_monitored_pages: int
+    total_sources: int
+    active_sources: int
     new_posts_today: int
     ready_posts: int
+    queue_size: int
+    valid_amazon_posts: int
     duplicates_skipped: int
     failed_imports: int
     last_scan_at: datetime | None = None

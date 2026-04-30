@@ -17,9 +17,33 @@ data class SourceOut(
     val url: String,
     val name: String? = null,
     val enabled: Boolean,
+    val status: String = "inactive",
     @Json(name = "last_checked_at") val lastCheckedAt: String? = null,
     @Json(name = "posts_found") val postsFound: Int = 0,
+    @Json(name = "valid_amazon_posts") val validAmazonPosts: Int = 0,
     @Json(name = "created_at") val createdAt: String,
+)
+
+@JsonClass(generateAdapter = false)
+data class SourceValidateIn(val url: String)
+
+@JsonClass(generateAdapter = false)
+data class SourcePreviewPost(
+    val url: String,
+    val description: String? = null,
+    @Json(name = "image_url") val imageUrl: String? = null,
+    @Json(name = "has_amazon_link") val hasAmazonLink: Boolean = false,
+)
+
+@JsonClass(generateAdapter = false)
+data class SourcePreview(
+    val url: String,
+    @Json(name = "is_reachable") val isReachable: Boolean,
+    @Json(name = "is_public") val isPublic: Boolean,
+    @Json(name = "page_name") val pageName: String? = null,
+    @Json(name = "recent_posts_count") val recentPostsCount: Int = 0,
+    @Json(name = "sample_posts") val samplePosts: List<SourcePreviewPost> = emptyList(),
+    val error: String? = null,
 )
 
 @JsonClass(generateAdapter = false)
@@ -51,8 +75,12 @@ data class PostOut(
 @JsonClass(generateAdapter = false)
 data class DashboardOut(
     @Json(name = "total_monitored_pages") val totalMonitoredPages: Int,
+    @Json(name = "total_sources") val totalSources: Int = 0,
+    @Json(name = "active_sources") val activeSources: Int = 0,
     @Json(name = "new_posts_today") val newPostsToday: Int,
     @Json(name = "ready_posts") val readyPosts: Int,
+    @Json(name = "queue_size") val queueSize: Int = 0,
+    @Json(name = "valid_amazon_posts") val validAmazonPosts: Int = 0,
     @Json(name = "duplicates_skipped") val duplicatesSkipped: Int,
     @Json(name = "failed_imports") val failedImports: Int,
     @Json(name = "last_scan_at") val lastScanAt: String? = null,
