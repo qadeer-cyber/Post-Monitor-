@@ -46,22 +46,37 @@ class Repository(private val context: Context) {
         sourceDao.all().map { it.toOut() }
     }
 
-    suspend fun validateSource(url: String): SourcePreview = withContext(Dispatchers.IO) {
+    suspend fun validateSource(url: String): SourcePreview {
         val ua = Prefs.userAgentValue(context)
         val client = http()
-        val page = Scraper.fetch(url, client, ua)
-        // Always log the raw fetch outcome so the user can see what happened
-        // when previewing a page, even on the happy path.
+        val outcome = Scraper.fetchWithFallback(context, url, client, ua)
+        return withContext(Dispatchers.IO) {
+        val page = outcome.page
+        // Persist all structured fetch events first so the Logs tab shows the
+        // full okhttp_fetch_failed → webview_fallback_started → webview_parse_*
+        // chain in order.
+        outcome.events.forEach { ev ->
+            logDao.insert(
+                LogEntity(
+                    category = ev.category,
+                    level = ev.level,
+                    message = ev.message,
+                    detail = ev.detail,
+                ),
+            )
+        }
+        // Always log the final preview outcome so the user can see what happened.
         logDao.insert(
             LogEntity(
-                category = "scan",
+                category = if (page.blocked) "blocked_page_detected" else "scan",
                 level = if (page.error != null || page.blocked) "warn" else "info",
                 message = if (page.blocked) {
                     "blocked_page_detected: ${page.htmlTitle ?: "no <title>"}"
                 } else if (page.error != null) {
                     "preview_failed: ${page.error}"
                 } else {
-                    "preview_ok: ${page.posts.size} permalinks, ${page.amazonUrlsOnPage.size} Amazon links"
+                    "preview_ok: ${page.posts.size} permalinks, ${page.amazonUrlsOnPage.size} Amazon links" +
+                        (if (outcome.usedWebView) " (via WebView fallback)" else "")
                 },
                 detail = buildScrapeDiagDetail(page),
             ),
@@ -103,6 +118,7 @@ class Repository(private val context: Context) {
                 htmlTitle = page.htmlTitle,
                 htmlSnippet = page.htmlSnippet,
             )
+        }
         }
     }
 
@@ -202,10 +218,17 @@ class Repository(private val context: Context) {
             // structured categories so filtering still does what users expect.
             val mapped: List<String>? = when (category) {
                 null -> null
-                "scan" -> listOf("scan", "scan_started", "scan_finished", "posts_found")
+                "scan" -> listOf(
+                    "scan", "scan_started", "scan_finished", "posts_found",
+                    "okhttp_fetch_failed", "webview_fallback_started",
+                    "webview_html_extracted", "webview_parse_success",
+                )
                 "import" -> listOf("import", "no_amazon_links_found", "amazon_posts_extracted")
                 "link" -> listOf("link", "amazon_posts_extracted")
-                "error" -> listOf("error", "blocked_page_detected")
+                "error" -> listOf(
+                    "error", "blocked_page_detected", "facebook_block_detected",
+                    "webview_parse_failed",
+                )
                 else -> listOf(category)
             }
             val rows = if (mapped == null) {

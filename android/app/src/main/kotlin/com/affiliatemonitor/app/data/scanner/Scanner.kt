@@ -231,8 +231,24 @@ class Scanner(private val context: Context) {
         var failed = 0
 
         try {
-            val page = Scraper.fetch(src.url, http, userAgent)
+            val outcome = Scraper.fetchWithFallback(context, src.url, http, userAgent)
+            val page = outcome.page
             sourceDao.touchLastCheckedAt(src.id, System.currentTimeMillis())
+
+            // Replay structured fetch events into the per-source log so users can
+            // see the okhttp_fetch_failed → webview_fallback_started → webview_parse_*
+            // chain as it happened.
+            outcome.events.forEach { ev ->
+                logDao.insert(
+                    LogEntity(
+                        category = ev.category,
+                        level = ev.level,
+                        message = ev.message,
+                        sourceId = src.id,
+                        detail = ev.detail,
+                    ),
+                )
+            }
 
             // Always emit a diagnostic line with HTTP status / title / first 200 chars.
             logDao.insert(
@@ -241,7 +257,8 @@ class Scanner(private val context: Context) {
                     level = if (page.error != null || page.blocked) "warn" else "info",
                     message = "Fetched ${src.url}: status=${page.httpStatus ?: "n/a"}, " +
                         "title='${page.htmlTitle?.take(80) ?: ""}', " +
-                        "permalinks=${page.posts.size}, amazonLinks=${page.amazonUrlsOnPage.size}",
+                        "permalinks=${page.posts.size}, amazonLinks=${page.amazonUrlsOnPage.size}" +
+                        (if (outcome.usedWebView) " (via WebView fallback)" else ""),
                     sourceId = src.id,
                     detail = page.htmlSnippet,
                 ),
