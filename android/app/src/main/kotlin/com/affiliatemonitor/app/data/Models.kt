@@ -66,6 +66,7 @@ data class PostOut(
     val asin: String,
     val marketplace: String,
     val finalCaption: String,
+    val couponCode: String? = null,
     val status: String,
     val postedAt: String? = null,
     val rejectedAt: String? = null,
@@ -122,4 +123,17 @@ data class SettingsUpdate(
     val dailyImportLimit: Int? = null,
     val delayBetweenPageScansSeconds: Int? = null,
     val testMode: Boolean? = null,
+)
+
+/**
+ * Result of a one-shot import action (Facebook post URL / Amazon URL / Reddit
+ * feed). Used by Input Hub to render a single human-readable status line.
+ */
+data class ImportFeedback(
+    val ok: Boolean,
+    val imported: Int,
+    val duplicates: Int,
+    val failed: Int,
+    val message: String,
+    val postId: Int? = null,
 )

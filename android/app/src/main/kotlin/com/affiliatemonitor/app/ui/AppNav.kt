@@ -1,11 +1,11 @@
 package com.affiliatemonitor.app.ui
 
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.AddCircle
 import androidx.compose.material.icons.outlined.Article
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Dashboard
 import androidx.compose.material.icons.outlined.Inbox
-import androidx.compose.material.icons.outlined.Link
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
@@ -26,19 +26,19 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.navArgument
 
 import com.affiliatemonitor.app.ui.screens.DashboardScreen
+import com.affiliatemonitor.app.ui.screens.InputHubScreen
 import com.affiliatemonitor.app.ui.screens.LogsScreen
 import com.affiliatemonitor.app.ui.screens.PostDetailScreen
 import com.affiliatemonitor.app.ui.screens.PostedScreen
 import com.affiliatemonitor.app.ui.screens.QueueScreen
 import com.affiliatemonitor.app.ui.screens.SettingsScreen
-import com.affiliatemonitor.app.ui.screens.SourcesScreen
 import com.affiliatemonitor.app.ui.theme.DeepBg
 import com.affiliatemonitor.app.ui.theme.NeonBlue
 import com.affiliatemonitor.app.ui.theme.TextMuted
 
 object Routes {
     const val Dashboard = "dashboard"
-    const val Sources = "sources"
+    const val InputHub = "input_hub"
     const val Queue = "queue"
     const val Posted = "posted"
     const val Logs = "logs"
@@ -51,7 +51,7 @@ data class NavTab(val route: String, val label: String, val icon: ImageVector)
 
 private val tabs = listOf(
     NavTab(Routes.Dashboard, "Dashboard", Icons.Outlined.Dashboard),
-    NavTab(Routes.Sources, "Sources", Icons.Outlined.Link),
+    NavTab(Routes.InputHub, "Input Hub", Icons.Outlined.AddCircle),
     NavTab(Routes.Queue, "Queue", Icons.Outlined.Inbox),
     NavTab(Routes.Posted, "Posted", Icons.Outlined.CheckCircle),
     NavTab(Routes.Logs, "Logs", Icons.Outlined.Article),
@@ -65,7 +65,7 @@ fun AppNav(nav: NavHostController) {
         startDestination = Routes.Dashboard,
     ) {
         composable(Routes.Dashboard) { DashboardScreen() }
-        composable(Routes.Sources) { SourcesScreen() }
+        composable(Routes.InputHub) { InputHubScreen() }
         composable(Routes.Queue) { QueueScreen(onOpen = { nav.navigate(Routes.postDetail(it)) }) }
         composable(Routes.Posted) { PostedScreen(onOpen = { nav.navigate(Routes.postDetail(it)) }) }
         composable(Routes.Logs) { LogsScreen() }

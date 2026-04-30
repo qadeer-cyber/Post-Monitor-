@@ -143,14 +143,25 @@ private fun Body(
                 AsyncImage(
                     model = post.imageUrl,
                     contentDescription = null,
+                    contentScale = androidx.compose.ui.layout.ContentScale.Fit,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .aspectRatio(1.6f)
+                        .aspectRatio(1f)
                         .clip(RoundedCornerShape(14.dp)),
                 )
                 Spacer(Modifier.height(12.dp))
             }
-            Text(post.sourcePageName ?: "Unknown page", color = NeonBlue, style = MaterialTheme.typography.labelLarge)
+            Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                Text(
+                    post.sourcePageName ?: "Unknown page",
+                    color = NeonBlue,
+                    style = MaterialTheme.typography.labelLarge,
+                    modifier = Modifier.weight(1f),
+                )
+                if (!post.couponCode.isNullOrBlank()) {
+                    com.affiliatemonitor.app.ui.CouponBadge(post.couponCode)
+                }
+            }
             Spacer(Modifier.height(8.dp))
             Text(post.finalCaption, style = MaterialTheme.typography.bodyMedium)
         }

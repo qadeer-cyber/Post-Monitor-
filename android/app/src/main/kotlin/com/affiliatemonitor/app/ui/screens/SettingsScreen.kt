@@ -23,6 +23,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.RadioButton
+import androidx.compose.material3.RadioButtonDefaults
+import androidx.compose.ui.Alignment
+import com.affiliatemonitor.app.data.CaptionStyle
+import com.affiliatemonitor.app.data.Prefs
 import com.affiliatemonitor.app.data.Repository
 import com.affiliatemonitor.app.data.SettingsOut
 import com.affiliatemonitor.app.data.SettingsUpdate
@@ -52,6 +60,7 @@ fun SettingsScreen() {
     var intervalMin by remember { mutableStateOf("") }
     var dailyLimit by remember { mutableStateOf("") }
     var delaySec by remember { mutableStateOf("") }
+    var captionStyle by remember { mutableStateOf(CaptionStyle.CLEAN_DEAL) }
 
     suspend fun refresh() {
         loading = true
@@ -63,6 +72,7 @@ fun SettingsScreen() {
             intervalMin = s.scanIntervalMinutes.toString()
             dailyLimit = s.dailyImportLimit.toString()
             delaySec = s.delayBetweenPageScansSeconds.toString()
+            captionStyle = Prefs.captionStyleValue(ctx)
         } catch (t: Throwable) {
             error = t.message
         } finally {
@@ -91,6 +101,52 @@ fun SettingsScreen() {
                 loading && settings == null -> LoadingIndicator()
                 error != null && settings == null -> ErrorBanner(error!!) { scope.launch { refresh() } }
                 else -> {
+                    GlassCard(accent = NeonBlue) {
+                        Column {
+                            Text("Caption style", style = MaterialTheme.typography.titleMedium)
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                "How posts are formatted before they hit your queue.",
+                                color = TextMuted,
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                            Spacer(Modifier.height(8.dp))
+                            CaptionStyle.entries.forEach { style ->
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            captionStyle = style
+                                            scope.launch { Prefs.setCaptionStyle(ctx, style) }
+                                        }
+                                        .padding(vertical = 4.dp),
+                                ) {
+                                    RadioButton(
+                                        selected = captionStyle == style,
+                                        onClick = {
+                                            captionStyle = style
+                                            scope.launch { Prefs.setCaptionStyle(ctx, style) }
+                                        },
+                                        colors = RadioButtonDefaults.colors(
+                                            selectedColor = NeonBlue,
+                                            unselectedColor = TextMuted,
+                                        ),
+                                    )
+                                    Spacer(Modifier.height(0.dp))
+                                    Column(Modifier.weight(1f)) {
+                                        Text(style.label, style = MaterialTheme.typography.bodyMedium)
+                                        Text(
+                                            captionStyleHint(style),
+                                            color = TextMuted,
+                                            style = MaterialTheme.typography.labelSmall,
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    Spacer(Modifier.height(12.dp))
                     GlassCard(accent = NeonGreen) {
                         Column {
                             Text("Amazon Associate tag", style = MaterialTheme.typography.titleMedium)
@@ -182,6 +238,12 @@ fun SettingsScreen() {
             Spacer(Modifier.height(24.dp))
         }
     }
+}
+
+private fun captionStyleHint(style: CaptionStyle): String = when (style) {
+    CaptionStyle.ORIGINAL -> "Full source description, then #ad block."
+    CaptionStyle.CLEAN_DEAL -> "🔥 product · 💰 price · 🏷️ code · #ad block."
+    CaptionStyle.SHORT_VIRAL -> "Single-line hook + #ad + link."
 }
 
 @Composable

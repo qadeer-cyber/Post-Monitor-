@@ -48,6 +48,7 @@ data class PostEntity(
     val marketplace: String,
     val finalCaption: String,
     val captionHash: String,
+    val couponCode: String? = null,
     val status: String = "queue", // queue | posted | rejected
     val postedAt: Long? = null,
     val rejectedAt: Long? = null,

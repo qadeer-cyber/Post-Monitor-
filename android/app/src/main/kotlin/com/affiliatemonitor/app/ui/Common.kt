@@ -164,3 +164,23 @@ fun GlowSeparator() {
             )
     )
 }
+
+/**
+ * Highlighted neon-green pill displaying a detected coupon / promo code, used
+ * by Queue cards and Post Detail to make the code visually obvious.
+ */
+@Composable
+fun CouponBadge(code: String, modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(8.dp))
+            .background(NeonGreen.copy(alpha = 0.15f))
+            .padding(horizontal = 10.dp, vertical = 4.dp),
+    ) {
+        Text(
+            "🏷️ $code",
+            color = NeonGreen,
+            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+        )
+    }
+}

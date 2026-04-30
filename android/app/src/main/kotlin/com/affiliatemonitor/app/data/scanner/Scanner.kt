@@ -1,10 +1,12 @@
 package com.affiliatemonitor.app.data.scanner
 
 import android.content.Context
+import com.affiliatemonitor.app.data.CaptionStyle
 import com.affiliatemonitor.app.data.Prefs
 import com.affiliatemonitor.app.data.amazon.AmazonLink
 import com.affiliatemonitor.app.data.amazon.buildCaption
 import com.affiliatemonitor.app.data.amazon.captionHash
+import com.affiliatemonitor.app.data.amazon.detectCouponCode
 import com.affiliatemonitor.app.data.facebook.Scraper
 import com.affiliatemonitor.app.data.local.AppDatabase
 import com.affiliatemonitor.app.data.local.LogEntity
@@ -43,6 +45,7 @@ class Scanner(private val context: Context) {
         val dailyLimit = Prefs.dailyLimitValue(context)
         val delaySec = Prefs.delayBetweenScansSecValue(context).coerceAtLeast(0)
         val ua = Prefs.userAgentValue(context)
+        val captionStyle = Prefs.captionStyleValue(context)
         val started = System.currentTimeMillis()
         val historyId = historyDao.insert(ScanHistoryEntity(startedAt = started)).toInt()
         val sources = sourceDao.activeSources()
@@ -81,7 +84,7 @@ class Scanner(private val context: Context) {
                 break
             }
             try {
-                val outcome = scanOne(src, tag, ua, http, remainingBudget)
+                val outcome = scanOne(src, tag, ua, captionStyle, http, remainingBudget)
                 pagesScanned += 1
                 totalFound += outcome.found
                 totalImported += outcome.imported
@@ -159,6 +162,7 @@ class Scanner(private val context: Context) {
 
         val tag = Prefs.amazonTagValue(context)
         val ua = Prefs.userAgentValue(context)
+        val captionStyle = Prefs.captionStyleValue(context)
         val dailyLimit = Prefs.dailyLimitValue(context)
         val twentyFourHoursAgo = System.currentTimeMillis() - 24L * 60 * 60 * 1000
         val alreadyImported = postDao.countAmazonImportsSince(twentyFourHoursAgo)
@@ -168,7 +172,7 @@ class Scanner(private val context: Context) {
         val http = client()
 
         val outcome = try {
-            scanOne(src, tag, ua, http, budget)
+            scanOne(src, tag, ua, captionStyle, http, budget)
         } catch (t: Throwable) {
             logDao.insert(
                 LogEntity(
@@ -213,6 +217,7 @@ class Scanner(private val context: Context) {
         src: SourceEntity,
         tag: String,
         userAgent: String,
+        captionStyle: CaptionStyle,
         http: OkHttpClient,
         budgetRemaining: Int,
     ): ScanOutcome {
@@ -357,7 +362,11 @@ class Scanner(private val context: Context) {
                     )
                     continue
                 }
-                val caption = buildCaption(post.description, parsed.affiliateUrl)
+                val caption = buildCaption(
+                    originalDescription = post.description,
+                    affiliateLink = parsed.affiliateUrl,
+                    style = captionStyle,
+                )
                 val cHash = captionHash(caption)
                 val dup = postDao.findDuplicate(post.sourcePostUrl, parsed.asin, cHash)
                 if (dup != null) {
@@ -387,6 +396,7 @@ class Scanner(private val context: Context) {
                         marketplace = parsed.marketplace,
                         finalCaption = caption,
                         captionHash = cHash,
+                        couponCode = detectCouponCode(post.description),
                     ),
                 )
                 imported += 1
