@@ -23,6 +23,7 @@ class Source(Base):
     enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     last_checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     posts_found: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    valid_amazon_posts: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, nullable=False)
 
     posts: Mapped[list["Post"]] = relationship(back_populates="source", cascade="all, delete-orphan")

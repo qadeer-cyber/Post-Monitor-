@@ -69,14 +69,14 @@ fun DashboardScreen() {
                     val d = data!!
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         StatTile(
-                            "Monitored pages",
-                            d.totalMonitoredPages.toString(),
+                            "Total sources",
+                            d.totalSources.toString(),
                             accent = NeonBlue,
                             modifier = Modifier.weight(1f),
                         )
                         StatTile(
-                            "New today",
-                            d.newPostsToday.toString(),
+                            "Active sources",
+                            d.activeSources.toString(),
                             accent = NeonGreen,
                             modifier = Modifier.weight(1f),
                         )
@@ -84,8 +84,23 @@ fun DashboardScreen() {
                     Spacer(Modifier.height(12.dp))
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         StatTile(
-                            "Ready posts",
-                            d.readyPosts.toString(),
+                            "Posts today",
+                            d.newPostsToday.toString(),
+                            accent = NeonGreen,
+                            modifier = Modifier.weight(1f),
+                        )
+                        StatTile(
+                            "Valid Amazon posts",
+                            d.validAmazonPosts.toString(),
+                            accent = NeonBlue,
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                    Spacer(Modifier.height(12.dp))
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        StatTile(
+                            "Queue size",
+                            d.queueSize.toString(),
                             accent = NeonBlue,
                             modifier = Modifier.weight(1f),
                         )

@@ -39,7 +39,33 @@ def get_db() -> Iterator[Session]:
 
 
 def init_db() -> None:
-    """Create tables. Called on startup."""
+    """Create tables. Called on startup.
+
+    Also runs a tiny idempotent SQLite migration that adds columns which were
+    introduced after v0.1.0 — SQLAlchemy's ``create_all`` does not alter existing
+    tables, so we inspect the live schema and issue ``ALTER TABLE ADD COLUMN``
+    when a known column is missing. This keeps old databases on disk working
+    after upgrades without requiring a manual wipe.
+    """
+    from sqlalchemy import inspect, text
+
     from . import models  # noqa: F401 — ensure models are registered
 
     Base.metadata.create_all(bind=engine)
+
+    # idempotent additive migrations
+    additions: dict[str, list[tuple[str, str]]] = {
+        "sources": [
+            ("valid_amazon_posts", "INTEGER NOT NULL DEFAULT 0"),
+        ],
+    }
+
+    inspector = inspect(engine)
+    with engine.begin() as conn:
+        for table, cols in additions.items():
+            if not inspector.has_table(table):
+                continue
+            existing = {c["name"] for c in inspector.get_columns(table)}
+            for name, ddl in cols:
+                if name not in existing:
+                    conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {name} {ddl}"))

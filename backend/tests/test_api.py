@@ -62,9 +62,60 @@ def test_dashboard_and_logs(client):
     client.post("/api/scan")
     d = client.get("/api/dashboard").json()
     assert d["total_monitored_pages"] == 1
+    assert d["total_sources"] == 1
+    assert d["active_sources"] == 1
     assert d["ready_posts"] >= 1
+    assert d["queue_size"] == d["ready_posts"]
+    assert d["valid_amazon_posts"] >= 1
     logs = client.get("/api/logs").json()
     assert any(l["category"] == "import" for l in logs)
+    # Per-source scan-start / scan-finish markers emitted
+    messages = [l["message"] for l in logs]
+    assert any("Scan started for" in m for m in messages)
+    assert any("amazon_posts_extracted=" in m for m in messages)
+
+
+def test_validate_source_preview_public(client):
+    r = client.post(
+        "/api/sources/validate",
+        json={"url": "https://www.facebook.com/SampleDealsPage1"},
+    )
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["is_public"] is True
+    assert body["is_reachable"] is True
+    assert body["recent_posts_count"] >= 1
+    assert body["page_name"]
+    assert body["sample_posts"]
+
+
+def test_validate_source_preview_unknown_returns_not_public(client):
+    r = client.post(
+        "/api/sources/validate",
+        json={"url": "https://www.facebook.com/DoesNotExistInSamples"},
+    )
+    assert r.status_code == 200
+    body = r.json()
+    assert body["is_public"] is False
+
+
+def test_source_out_includes_status_and_valid_count(client):
+    client.post("/api/sources", json={"url": "https://www.facebook.com/SampleDealsPage1"})
+    client.post("/api/scan")
+    sources = client.get("/api/sources").json()
+    assert sources
+    s = sources[0]
+    assert s["status"] == "active"
+    assert "valid_amazon_posts" in s
+    assert s["valid_amazon_posts"] >= 1
+
+
+def test_inactive_source_cannot_be_manually_scanned(client):
+    r = client.post("/api/sources", json={"url": "https://www.facebook.com/SampleDealsPage1"})
+    sid = r.json()["id"]
+    client.patch(f"/api/sources/{sid}", json={"enabled": False})
+    r = client.post(f"/api/sources/{sid}/scan")
+    assert r.status_code == 409
 
 
 def test_mark_posted_and_reject(client):

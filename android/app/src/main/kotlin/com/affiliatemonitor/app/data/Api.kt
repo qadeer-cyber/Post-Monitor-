@@ -19,6 +19,7 @@ interface ApiService {
     @GET("api/health") suspend fun health(): HealthOut
 
     @GET("api/sources") suspend fun listSources(): List<SourceOut>
+    @POST("api/sources/validate") suspend fun validateSource(@Body body: SourceValidateIn): SourcePreview
     @POST("api/sources") suspend fun createSource(@Body body: SourceCreate): SourceOut
     @PATCH("api/sources/{id}") suspend fun updateSource(@Path("id") id: Int, @Body body: SourceUpdate): SourceOut
     @DELETE("api/sources/{id}") suspend fun deleteSource(@Path("id") id: Int)

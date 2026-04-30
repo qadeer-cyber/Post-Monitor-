@@ -16,7 +16,9 @@ class Repository(private val context: Context) {
 
     suspend fun health() = service().health()
     suspend fun listSources() = service().listSources()
-    suspend fun addSource(url: String) = service().createSource(SourceCreate(url = url))
+    suspend fun validateSource(url: String) = service().validateSource(SourceValidateIn(url = url))
+    suspend fun addSource(url: String, name: String? = null) =
+        service().createSource(SourceCreate(url = url, name = name))
     suspend fun updateSource(id: Int, update: SourceUpdate) = service().updateSource(id, update)
     suspend fun deleteSource(id: Int) = service().deleteSource(id)
     suspend fun scanSource(id: Int) = service().scanSource(id)
